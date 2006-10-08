@@ -1,0 +1,945 @@
+#!/usr/bin/perl -w
+# $Id: fotofix,v 1.1 2006/10/08 22:05:18 dk Exp $
+
+# simple image viewer with simple capabilities to take care of
+# freshly downloaded photos from your camera - can walk image lists,
+# rotate images, and remove red eyes (if lucky)
+
+# XXX todo: openfile/savefile: preserve paths, as in ini
+
+use strict;
+use warnings;
+use Prima qw(
+	Application ImageViewer StdDlg
+	MsgBox IniFile
+);
+use IPA::Misc qw(/./);
+use IPA::Point qw(/./);
+use IPA::Geometry qw(/./);
+
+my $VERSION = 0.01;
+
+my ( 
+	$w, $menu, $iv, 
+	$ini,
+	@neighbour_files_cache,
+	$filename, $filecodec,
+	$region, %icons,
+	$current_pixel,
+);
+my $fullscreen = 0;
+my $modified   = 0;
+my $conversion = ict::Optimized;
+my $conversion_menuid = 'P';
+my %image_format_category = (
+	im::Color                    => '%06x',
+	im::GrayScale                => '%d',
+	im::GrayScale|im::RealNumber => '%g',
+);
+
+{
+	$_=<<DD;
+z0z0e08d0Fa0Fc0302Cc0F08Fc0F1DFc0F3CFc0F7EF08a0F7EFc07EaF04a07CaFa01069BD041
+061BDc0E0BD04a0D07Bc0D16Bc0934Bc0a306c0Ba06z0z0c0zFzFcF0F70cF0E30cF0E10cF0E1
+0cF0Ca0cF08a0cFc0F7aFc0F7EFc0F3EFc0F3CFc0F3CF02a0F3EF06a0F3aF0Ea0F7aF0Ca0cF0
+810cF0830cF0CF0cFCaF1zFvF
+DD
+	s/\n//g;
+	s/([a-z])?(.)/$2x($1?(ord($1)-ord('_')):1)/ge;
+	$_=pack('h*',$_);
+	$icons{hand} = Prima::Icon-> create(
+		width  => 32,
+		height => 32,
+		type   => im::BW,
+		data   => substr($_,0,128),
+		mask   => substr($_,128,128)
+	)
+}
+
+
+sub update_window_title
+{
+	my $img = $iv-> image;
+	my $str;
+	if ( $img) {
+		$str = $filename;
+		$str =~ s/([^\\\/]*)$/$1/;
+		$str = sprintf("%s (%dx%dx%d bpp)", $1,
+			$img-> width, $img-> height, $img-> type & im::BPP);
+	} else {
+		$str = '.Untitled';
+	}
+
+	if ( $iv-> {drag} and $iv->{drag} == mb::Left) {
+		$str .= " [" .
+			abs( $iv->{marquee_x} - $iv->{x}) .
+			":" .
+			abs( $iv->{marquee_y} - $iv->{y}) .
+			"]";
+	} elsif ( defined $current_pixel) {
+		$str .= " $current_pixel";
+	} else {
+		$str .= ' ' . 100 * $iv-> zoom . '%';
+	}
+
+	my $is_modified = $modified ? '* ' : '';
+	$w-> text( "FotoFix - $is_modified$str");
+	$::application-> name( "FotoFix - $str");
+}
+
+sub update_menu_status
+{
+	my $x = $iv-> image ? 1 : 0;
+	$menu-> enabled( $_ , $x) for qw(
+		saveas next prev first last 
+		convert copy view rotate effects
+	);
+
+	$x &&= $region;
+	$menu-> enabled( $_, $x) for qw(crop redeyes);
+
+	$x = defined $filename;
+	$menu-> enabled( $_, $x) for qw(save delete);
+}
+
+sub replace_image
+{
+	my $i = shift;
+	$region = undef;
+
+	$iv-> image( $i);
+	$iv-> palette( $i-> palette);
+	
+	$modified = 1;
+	update_window_title();
+	update_menu_status();
+	update_window_size();
+}
+
+# copy-paste from ImageViewer.pm: it cannot do arbitrary zoom factors, only
+# with fractional parts from 0.02 to 0.98 with 0.01-0.02 steps
+sub round_zoom
+{
+	my $zoom = shift;
+	$zoom = 100 if $zoom > 100;
+	$zoom = 1 if $zoom <= 0.01;
+	my $dv = int( 100 * ( $zoom - int( $zoom)) + 0.5);
+	$dv-- if ($dv % 2) and ( $dv % 5);
+	return int($zoom) + $dv / 100;
+}
+
+sub get_client_size
+{
+	my @as = $::application-> size;
+	$as[0] -= $::application-> get_system_value(sv::XbsSizeable) * 2;
+	$as[1] -= $::application-> get_system_value(sv::YbsSizeable) * 2
+		+ $::application-> get_system_value(sv::YMenu) 
+		+ $::application-> get_system_value(sv::YTitleBar);
+	@as;
+}
+
+sub update_window_size
+{
+	return unless $iv-> image;
+
+	if ( $ini->{WindowFit}) {
+		my @is = $iv-> image-> size;
+		my @as = $iv-> get_active_area(2, get_client_size());
+	
+		# expect scrollbars to disappear
+		$as[0] += $iv-> VScroll-> width  if $iv-> vScroll;
+		$as[1] += $iv-> HScroll-> height if $iv-> hScroll;
+	
+		my $x = $as[0] / $is[0];
+		my $y = $as[1] / $is[1];
+		my $z = round_zoom((($x < $y) ? $x : $y));
+
+		unless ( $fullscreen ) {
+			$w-> size( map { $z * $_ } @is);
+			my @fs = $w-> frameSize;
+			$w-> frameOrigin(0,
+				$::application-> height - $fs[1]
+			);
+		}
+	}
+	
+	if ( $ini->{WindowFit} or $ini->{AutoBestFit}) {
+		zbestfit();
+	} elsif ( not $fullscreen) {
+		# bring window size to the image's
+
+		my @is = $iv-> image-> size;
+		
+		$is[0] += $iv-> {indents}->[0] + $iv-> {indents}->[2];
+		$is[1] += $iv-> {indents}->[1] + $iv-> {indents}->[3];
+		
+		my @as = get_client_size();
+
+		zoom_set(1.0);
+		update_window_title();
+		$is[0] = $as[0] if $is[0] > $as[0];
+		$is[1] = $as[1] if $is[1] > $as[1];
+
+		
+		for ( 0,1) {
+			my @fo = $w-> frameOrigin;
+			my @fs1 = $w-> frameSize;
+			$w-> size( @is);
+			my @fs2 = $w-> frameSize;
+			$w-> frameOrigin( $fo[0], $fo[1] + $fs1[1] - $fs2[1]);
+			# changing frame size is a tricky business, menu might wrap,
+			# window manager might behave strangely, etc... give it
+			# just one more try to set the minimum client size we want
+			my @ws = $w-> size;
+			last if $ws[0] >= $is[0] and $ws[1] >= $is[1];
+			$is[0] = $ws[0] if $is[0] < $ws[0];
+			$is[1] = $ws[1] if $is[1] < $ws[1];
+		}
+	}
+}
+
+sub fullscreen
+{
+	my $f = shift() ? 1 : 0;
+	return if $fullscreen == $f;
+	if ( $fullscreen = $f) {
+		$w-> set(
+			borderIcons => 0,
+			borderStyle => bs::None,
+		);
+		$iv-> backColor(cl::Black);
+		$w-> backColor(cl::Black);
+		$menu-> selected(0);
+		$w-> bring_to_front;
+		$w-> maximize;
+	} else {
+		$w-> set(
+			borderIcons => bi::All,
+			borderStyle => bs::Sizeable,
+		);
+		$iv-> backColor(cl::Back);
+		$w-> backColor(cl::Back);
+		$menu-> selected(1);
+		$w-> restore;
+	}
+	update_window_size();
+}
+
+sub open_image
+{
+	if ( $modified) {
+		return unless can_close_image();
+	}
+	my $dlg  = Prima::ImageOpenDialog-> create(
+		directory => $ini-> {Path},
+	);
+	my $i    = $dlg-> load;
+	if ( $i) {
+		undef $region;
+		$filename = $dlg-> fileName;
+		$modified = 0;
+		@neighbour_files_cache = ();
+		$filecodec = $i-> {extras}->{codecID};
+		$ini-> {Path} = $dlg-> directory;
+
+		$iv-> image( $i);
+		$iv-> palette( $i-> palette);
+
+		update_window_size();
+		update_window_title();
+		update_menu_status();
+		
+		$iv-> update_view;
+	}
+	$dlg-> destroy;
+}
+
+sub open_new_image
+{
+	my $fn = shift;
+	my $i = Prima::Image-> load($fn, loadExtras => 1);
+	if ($i) {
+		undef $region;
+		$filename = $fn;
+		$modified = 0;
+		@neighbour_files_cache = ();
+		$filecodec = $i-> {extras}->{codecID};
+
+		$iv-> image( $i);
+		$iv-> palette( $i-> palette);
+
+		update_window_size();
+		update_window_title();
+		update_menu_status();
+		
+		$iv-> update_view;
+	} else {
+		message( "Cannot load image $fn:$@");
+	}
+}
+
+sub reopen_image
+{
+	open_new_image($filename) if $filename
+}
+
+sub get_dir_list
+{
+	my ( $basedir, $file) = 
+		( $filename =~ /^(.*)[\\\/]([^\\\/]+)$/ ) ?
+			($1,$2) :
+			('.',$filename);
+	my $exts = join('|', map { @{$_->{fileExtensions}} } @{Prima::Image-> codecs});
+	my $rx = qr/\.($exts)$/i;
+	return unless opendir D, $basedir;
+	my @files = grep { /$rx/ } readdir D; 
+	closedir D;
+
+	my $found;
+	for ( my $i = 0; $i < @files; $i++) {
+		next unless $files[$i] eq $file;
+		$found = $i;
+		last;
+	}
+
+	return $basedir, $found, @files;
+}
+
+sub open_next_image
+{
+	my ( $self, $menu) = @_;
+	
+	return if $modified and not can_close_image();
+
+	return unless defined $filename;
+
+	my ( $basedir, $index, @files) = get_dir_list();
+	$index ||= 0;
+
+	return message("No files found") unless @files;
+
+	if ( $menu eq 'prev') {
+		return open_new_image($neighbour_files_cache[0])
+			if $neighbour_files_cache[0];
+
+		if ( $index == 0) {
+			return if message("First image in the directory, go to the last?", mb::YesNo) != mb::Yes;
+			$index = $#files;
+		} else {
+			$index--;
+		}
+	} elsif ( $menu eq 'next') {
+		return open_new_image($neighbour_files_cache[1])
+			if $neighbour_files_cache[1];
+
+		if ( $index == $#files) {
+			return if message("Last image in the directory, go to the first?", mb::YesNo) != mb::Yes;
+			$index = 0;
+		} else {
+			$index++;
+		}
+	} elsif ( $menu eq 'first') {
+		$index = 0;
+	} elsif ( $menu eq 'last') {
+		$index = $#files;
+	}
+
+	open_new_image( "$basedir/$files[$index]");
+}
+
+sub save_image
+{
+	unless ( $iv-> image-> save( $filename)) {
+		message('Cannot save '.$filename . ":$@");
+		return 0;
+	}
+	$modified = 0;
+	update_window_title();
+	1;
+}
+
+sub save_image_as
+{
+	my $ok;
+	$iv-> image-> {extras}->{codecID} = $filecodec;
+	my $dlg = Prima::ImageSaveDialog-> create( 
+		image     => $iv-> image,
+		directory => $ini-> {Path},
+	);
+	if ( $dlg-> save( $iv-> image)) {
+		$filename = $dlg-> fileName;
+		$modified = 0;
+		$ok = 1;
+		$ini-> {Path} = $dlg-> directory;
+		update_window_title();
+	}
+	$dlg-> destroy;
+	$ok;
+}
+
+sub delete_image
+{
+	return unless $filename and
+		message("Really delete $filename?", mb::OKCancel) == mb::OK;
+
+	my ( $basedir, $index, @files) = get_dir_list();
+	
+	unlink $filename or message("Cannot delete $filename:$!");
+
+	# use this hacky cache to preserve index on the dir list
+	$neighbour_files_cache[0] = ( $index > 0) ? $basedir . '/' . $files[$index-1] : undef;
+	$neighbour_files_cache[1] = $files[$index+1] ? $basedir . '/' . $files[$index+1] : undef;
+}
+
+sub can_close_image
+{
+	return 1 unless $modified;
+
+	my $ret;
+	if ( $filename) {
+		$ret = message(
+			"Image $filename wasn't saved. Save?",
+			mb::YesNoCancel
+		);
+		return 1 if $ret == mb::Yes and save_image();
+	} else {
+		$ret = message(
+			"Untitled image wasn't saved. Save?",
+			mb::YesNoCancel
+		);
+		return 1 if $ret == mb::Yes and save_image_as();
+	}
+	return 1 if $ret == mb::No;
+	0;
+}
+
+sub on_close
+{
+	shift-> clear_event unless can_close_image()
+}
+
+sub zbestfit
+{
+	my @szA = $iv-> image-> size;
+	my @szB = $iv-> get_active_area(2);
+	
+	# expect scrollbars to disappear
+	$szB[0] += $iv-> VScroll-> width  if $iv-> vScroll;
+	$szB[1] += $iv-> HScroll-> height if $iv-> hScroll;
+	
+	my $x = $szB[0] / $szA[0];
+	my $y = $szB[1] / $szA[1];
+	zoom_set( $x < $y ? $x : $y);
+}
+
+sub region_set
+{
+	my @r = map { int } ( @_ ? @_ : (0,0,0,0));
+	my $i = $iv-> image;
+	return unless $i;
+
+	my @s = $i-> size;
+	@r[0,2] = @r[2,0] if $r[2] < $r[0];
+	@r[1,3] = @r[3,1] if $r[3] < $r[1];
+	for ( @r) {
+		$_ = 0 if $_ < 0;
+	}
+	$r[0] = 0 if $r[0] < 0;
+	$r[1] = 0 if $r[1] < 0;
+	$r[2] = $s[0] - 1 if $r[2] >= $s[0];
+	$r[3] = $s[1] - 1 if $r[3] >= $s[1];
+
+	@r = (0,0,0,0) if 
+		$r[0] >= $s[0] or
+		$r[1] >= $s[1] or
+		$r[2] < 0 or
+		$r[3] < 0 or
+		( $r[0] == $r[2] and $r[1] == $r[3]);
+
+	my $r = $region;
+	$region = ( grep { $_ != 0 } @r ) ? \@r : undef;
+
+	return if not defined($r) and not defined($region);
+	
+	$iv-> repaint;
+}
+
+sub region_image
+{
+	my $i = $iv-> image;
+	
+	$region ? 
+		$i-> extract(
+			$region->[0],
+			$region->[1],
+			$region->[2] - $region->[0],
+			$region->[3] - $region->[1],
+		) : $i;
+}
+
+sub draw_marquee
+{
+	my $o = $::application;
+	$o-> begin_paint;
+	$o-> rect_focus(
+		$iv-> client_to_screen(
+			$iv-> point2screen( 
+				@{$iv}{qw(x y marquee_x marquee_y)}
+			)
+		)
+	);
+	$o-> end_paint;
+}
+
+
+sub iv_mousedown
+{
+	my ( $self, $btn, $mod, $x, $y) = @_;
+
+	return if $self-> {drag} or not $iv-> image;
+	
+	if ( $btn == mb::Right) {
+		$self-> {x} = $x;
+		$self-> {y} = $y;
+		$self-> {wasdx} = $self-> deltaX;
+		$self-> {wasdy} = $self-> deltaY;
+		$self-> pointer( $icons{hand});
+	} elsif ( $btn == mb::Left) {
+		@{$self}{qw(x y marquee_x marquee_y)} = map { int } $self-> screen2point( $x, $y, $x, $y);
+	} else {
+		return;
+	}
+	
+	$self-> {drag} = $btn;
+	
+	$self-> capture(1);
+}
+
+sub iv_mouseup
+{
+	my ( $self, $btn, $mod, $x, $y) = @_;
+	return unless $self-> {drag} && $btn == $self->{drag};
+	$self-> {drag} = 0;
+	$self-> capture(0);
+	update_window_title();
+
+	if ( $btn == mb::Right) {
+		$self-> pointer( cr::Default);
+	} elsif ( $btn == mb::Left) {
+		draw_marquee();
+		delete @{$self}{qw(marquee_x marquee_y})};
+		region_set( @{$self}{qw(x y)}, $self-> screen2point( $x, $y));
+		update_menu_status();
+	}
+}
+
+sub iv_mousemove
+{
+	my ( $self, $mod, $x, $y) = @_;
+
+	if ( not $self-> {drag}) {
+		if ( $mod & km::Shift) {
+			my $i = $self-> image;
+			my $p = $i-> pixel( $self-> screen2point($x, $y));
+			$current_pixel = ( $p == cl::Invalid) ? 
+				undef : 
+				sprintf(
+					$image_format_category{$i->type & im::Category},
+					$i-> pixel( $self-> screen2point($x, $y))
+				);
+			update_window_title();
+		} elsif ( defined $current_pixel) {
+			undef $current_pixel;
+			update_window_title();
+		}
+		
+	} elsif ( $self-> {drag} == mb::Right) {
+		my ($dx,$dy) = ($x - $self-> {x}, $y - $self-> {y});
+		$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
+	} elsif ( $self-> {drag} == mb::Left) {
+		draw_marquee();
+		@{$self}{qw(marquee_x marquee_y)} = map { int } $self-> screen2point($x, $y);
+		draw_marquee();	
+		update_window_title();
+	}
+}
+
+sub iv_paint
+{
+	my ( $self, $canvas) = @_;
+	$self-> on_paint( $canvas);
+	$canvas-> translate(0,0);
+	if ( $fullscreen and $filename) {
+		$canvas-> color( cl::LightGreen);
+		$canvas-> text_out( $filename, 10, $canvas-> height - $canvas-> font-> width - 10);
+	}
+	if ( $region) {
+		$canvas-> color( cl::Set);
+		$canvas-> rop( rop::XorPut);
+		$canvas-> rectangle( $self-> point2screen( @$region));
+	}
+}
+
+sub iv_mousewheel
+{
+	my ( $self, $mod, $x, $y, $z) = @_;
+	$z = int( $z / 120);
+	my $xv = ($mod & km::Shift) ? $self-> VScroll : $self-> HScroll;
+	$z *= ($mod & km::Ctrl) ? $xv-> pageStep : $xv-> step;
+	if ( $mod & km::Shift) {
+		$self-> deltaX( $self-> deltaX - $z);
+	} else {
+		$self-> deltaY( $self-> deltaY - $z);
+	}
+}
+
+
+sub iv_size
+{
+	zbestfit($w) if $ini-> {AutoBestFit};
+}
+
+sub zoom_scale
+{
+	my $zoom = shift;
+	my $current = $iv-> zoom;
+	my $try = $current;
+
+	while ( $iv-> zoom == $current) {
+		last if $try < 0.01 or $try > 100;
+		$iv-> zoom( $try *= $zoom);
+	}
+	update_window_title();
+}
+
+sub zoom_set
+{
+	$iv-> zoom(shift);
+	update_window_title();
+}
+
+sub setconv
+{
+	my ( $self, $menuID) = @_;
+	return if $conversion_menuid eq $menuID;
+	$self-> menu-> uncheck( $conversion_menuid);
+	$self-> menu-> check( $menuID);
+	$conversion_menuid = $menuID;
+	$conversion = ( 
+		( $menuID eq 'N') ? ict::None : (
+		( $menuID eq 'O') ? ict::Ordered : (
+		( $menuID eq 'E') ? ict::ErrorDiffusion : ict::Optimized
+	))
+	);  
+}   
+
+sub image_convert
+{
+	$iv-> image-> set(
+		conversion => $conversion,
+		type       => shift,
+	);
+	replace_image( $iv-> image);
+}
+
+sub image_rotate
+{
+	my $d = shift;
+	my $i;
+	if ( $d == 90) {
+		$i = rotate90( $iv-> image, 1);
+	} elsif ( $d == 180) {
+		$i = rotate180( $iv-> image);
+	} elsif ( $d == 270) {
+		$i = rotate90( $iv-> image, 0);
+	} else {
+		die "invalid call to image_rotate:$d\n";
+	}
+	replace_image($i);
+}
+
+sub image_mirror
+{	
+	replace_image( mirror( $iv-> image, type => 1 + shift));
+}
+
+sub image_invert
+{
+	# could just as well invert the palette if possible, but 
+	# probably there are chances that it is data to be inverted...
+	
+	# doesn't work on floats
+	return message('Unimplemented') 
+		if im::RealNumber <= $iv-> image-> type & im::Category;
+
+	if ( $region) {
+		my $i = region_image();
+		$i-> data( ~$i-> data);
+		$iv-> image-> put_image( @$region[0,1], $i);
+	} else {
+		$iv-> image-> data( ~$iv-> image-> data);
+	}
+	replace_image($iv-> image);
+}
+
+sub image_remove_red_eyes
+{
+	# This is the only parameter the detector cares about, and is a balance of 
+	# how much green and blue should be there to counterbalance the red. For example,
+	# 1.0 (default) will remove these red spots where the intensity or red is more
+	# than sum of intensities of blue and green. $HueDiff less than 1 makes the detector 
+	# to behave more aggressively, whereas $HueDiff more than 1 makes it be more strict about 
+	# what is to be considered the red hue. Values outside 0.8-2.0 are probably not
+	# practically useful.
+	my $HueDiff = 1.0;
+	
+	return message('Can only work on color images') 
+		if im::Color != $iv-> image-> type & im::Category;
+	
+	my $i = region_image();
+	$i-> type( im::RGB); # split_channels accepts RGB only
+	my ( $r, $g, $b) = @{split_channels( $i)};
+	my ( $G, $B);
+
+	if ( $HueDiff < 0.9999 or $HueDiff > 1.001) {
+		$G = $g-> dup;
+		$g-> type(im::Short);
+		$g = ab( $g, $HueDiff, 0);
+		$g = threshold( $g, false => 255, maxvalue => 255, preserve => 1);
+		$g-> type(im::Byte);
+
+		$B = $b-> dup;
+		$b-> type(im::Short);
+		$b = ab( $b, $HueDiff, 0);
+		$b = threshold( $b, false => 255, maxvalue => 255, preserve => 1);
+		$b-> type(im::Byte);
+	} else {
+		( $G, $B) = ( $g, $b);
+	}
+
+	# keep strong red features by subtracting everything green AND blue
+	my $x = subtract( $r, $g, conversionType => IPA::conversionTrunc);
+	$x = subtract( $x, $b, conversionType => IPA::conversionTrunc);
+	# have a binary mask
+	$x = threshold( $x, minvalue => 1);
+	# cut a hole with the mask in the original red channel
+	$r-> rop( rop::NotSrcAnd);
+	$r-> put_image( 0, 0, $x);
+	# create an averaged green/blue patch
+	my $gb = average([ $r, $g ]);
+	$gb-> rop( rop::AndPut);
+	$gb-> put_image( 0, 0, $x);
+
+	# plaster this patch over a hole in the red channel
+	$r-> rop( rop::OrPut);
+	$r-> put_image( 0, 0, $gb);
+	# combine back
+	$i = combine_channels([$r,$G,$B], 'rgb');
+	# put the area back to the big image
+	$i-> type( $iv-> image-> type);
+	$iv-> image-> put_image( @$region[0,1], $i);
+
+	undef $region;
+	replace_image($iv-> image);
+}
+
+$ini = Prima::IniFile-> create( 
+	file    => Prima::Utils::path('FotoFix'),
+		default => [
+			'Main' => [
+				AutoBestFit => 0,
+				WindowFit   => 0,
+				Path        => '.',
+			],
+		],
+)-> section('Main');
+
+$w = Prima::Window-> create( menuItems => [
+	[ '~File' => [
+		['open'   => '~Open image...'  => 'Ctrl+O'       => '^O' => \&open_image],
+		['reopen' => '~Reopen image...'=> 'Ctrl+Shift+O' => '^#O' => \&reopen_image],
+		['save'   => '~Save image'     => 'Ctrl+S'       => '^S' => \&save_image],
+		['saveas' => 'S~ave as...'     => 'Ctrl+Shift+S' => '^#S'=> \&save_image_as],
+		[],
+		['first'  => '~First image'    => 'Home'         => kb::Home      => \&open_next_image ],
+		['next'   => '~Next image'     => 'Space'        => kb::Space     => \&open_next_image ],
+		['prev'   => '~Previous image' => 'Backspace'    => kb::Backspace => \&open_next_image ],
+		['last'   => '~Last image'     => 'End'          => kb::End       => \&open_next_image ],
+		[],
+		['delete' => '~Delete file'    => 'Del'          => kb::Delete    => \&delete_image ],
+		[],
+		['E~xit'          => 'Esc'  => kb::Escape => sub {$::application-> close }],
+	]],
+	['~Edit' => [
+		['copy' => '~Copy' => 'Ctrl+Ins' => km::Ctrl|kb::Insert , sub {
+			$::application-> Clipboard-> image(region_image());
+		}],
+		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
+			my $i = $::application-> Clipboard-> image;
+			replace_image( $i) if $i;
+		}],
+		['-crop' => 'Cr~op' => sub {
+			return unless $iv-> image and $region;
+			replace_image( region_image());
+		}],
+		[],
+		[ 'convert' => 'Con~vert to'=> [
+			['~Monochrome' => sub {image_convert(im::Mono)}],
+			['~16 colors'  => sub {image_convert(im::bpp4)}],
+			['~256 colors' => sub {image_convert(im::bpp8)}],
+			['~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
+			['~RGB'        => sub {image_convert(im::RGB)}],
+			[],
+			['N' => '~No halftoning'   => \&setconv,],
+			['O' => '~Ordered'         => \&setconv,],
+			['E' => '~Error diffusion' => \&setconv,], 
+			['*P' => 'O~ptimized'      => \&setconv,], 
+		]],
+		[ 'rotate' => '~Rotate and mirror' => [
+			['Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(90) }],
+			['Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(270) }],
+			["Rotate ~180\xB0" => sub { image_rotate(180) }],
+			[],
+			['Mirror ~vertical' => 'V' => 'v' => sub { image_mirror(1) }],
+			['Mirror ~horizontal' => 'H' => 'h' => sub { image_mirror(0) }],
+		]],
+		['effects' => '~Effects' => [
+			['~Invert' => \&image_invert ],
+			['-redeyes' => '~Remove red eyes' => 'Alt+R' => '@R' => \&image_remove_red_eyes ],
+		]]
+	]],
+	['view' => '~View' => [
+		['~Normal ( 100%)' => 'Ctrl+Z' => '^Z' => sub{zoom_set(1.0)}],
+		['F~ull screen' => 'Enter' => kb::Enter => sub {
+			fullscreen( not $fullscreen);
+		}],
+		[
+		( $ini->{AutoBestFit} ? '*' : '') .
+		'abfit' => 'Fit to ~window' => 'M' => 'm' => sub{
+			$ini-> {WindowFit} = 0;
+			$menu-> winfit-> uncheck;	
+			$ini-> {AutoBestFit} = $menu-> abfit-> toggle;
+			update_window_size();
+		}],
+		[
+		( $ini->{WindowFit} ? '*' : '') .
+		'winfit' => '~Fit to screen' => 'F' => 'f' => sub {
+			$ini-> {AutoBestFit} = 0;
+			$menu-> abfit-> uncheck;
+			$ini-> {WindowFit} = $menu-> winfit-> toggle;
+			update_window_size();
+		}],
+		[],
+		['25%' =>   sub{zoom_set 0.25}],
+		['~50%' =>  sub{zoom_set 0.5 }],
+		['~75%' =>  sub{zoom_set 0.75}],
+		['~150%' => sub{zoom_set 1.5 }],
+		['~200%' => sub{zoom_set 2   }],
+		['~300%' => sub{zoom_set 3   }],
+		['~400%' => sub{zoom_set 4   }],
+		['~600%' => sub{zoom_set 6   }],
+		['16~00%' =>sub{zoom_set 16  }],
+		[],
+		['~Increase' => '+' => '+' => sub { zoom_scale 1.1 }],
+		['~Decrease' => '-' => '-' => sub { zoom_scale 0.9 }],
+	]],
+	[],
+	['~Help' => [
+		["~Information" => "F1" => "F1" => sub { $::application-> open_help($0)}],
+         	[],
+		[ "~About" => sub { message <<ABOUT, mb::OK }],
+FotoFix v$VERSION by Dmitry Karasik
+
+A simple image viewer
+ABOUT
+	]]],
+
+	icon      => Prima::StdBitmap::icon(0),
+	visible   => 0,
+	onClose   => \&on_close,
+	onDestroy => sub { $::application-> destroy },
+);
+
+$menu = $w-> menu;
+
+$iv = $w-> insert( ImageViewer =>
+	size	    => [ $w-> size],
+	origin      => [ 0, 0],
+	growMode    => gm::Client,
+	quality     => 1,
+	selectable  => 1,
+	name        => 'IV',
+	valignment  => ta::Middle,
+	alignment   => ta::Center,
+	onMouseDown => \&iv_mousedown,
+	onMouseUp   => \&iv_mouseup,
+	onMouseMove => \&iv_mousemove,
+	onPaint     => \&iv_paint,
+);
+
+update_menu_status();
+update_window_title();
+update_window_size();
+
+open_new_image( $ARGV[0]) if @ARGV;
+
+$w-> show;
+$w-> select;
+
+run Prima;
+
+exit;
+1;
+
+__DATA__
+
+=pod
+
+=head1 NAME
+
+FotoFix - simple image viewer
+
+=head1 DESCRIPTION
+
+FotoFix is a simple image viewer with simple capabilities to take care of
+freshly downloaded photos from your camera - can walk image lists, rotate
+images, and remove red eyes (if lucky). It was inspired by IrfanView for
+Windows, a great but unfortunately non-portable and closed-source product.
+My experience with various image viewers came to a point where I was no 
+longer satisfied with any, so I wrote yet another one.
+
+=head1 INSTALLATION
+
+FotoFix requres L<perl>, L<Prima>, and L<IPA> as dependencies. Whereas the
+first can be obtained by typing "download perl" in Google, the latter are
+available from CPAN.
+
+=head1 USAGE
+
+=head2 Remove red eyes
+
+To remove red eyes, select a rectangular area by mouse and do
+"Edit/Effects/Remove red eyes".  This will hopefully eliminate red spots in the
+given rectangle. If there are false positives, try to reload the image and
+apply the operation to a smaller area. The algorithm for reducing red eye glow
+is very simple, so if you have some bad red eyes, not detectable by it, feel
+free to hack it.
+
+=head2 Show pixel value under cursor
+
+Press shift and move the mouse around the picture
+
+=head1 BUGS & FEATURES
+
+The viewer is very, very simple. If you find a bug, or miss a feature, you
+are very welcome to hack it as you like, and eventually send me a patch.
+
+=head1 LICENSE
+
+This software is distributed under BSD license
+
+=head1 AUTHOR
+
+Dmitry Karasik, E<lt>dmitry@karasik.eu.orgE<gt>.
+
+=cut
