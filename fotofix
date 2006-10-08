@@ -1,11 +1,9 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.1 2006/10/08 22:05:18 dk Exp $
+# $Id: fotofix,v 1.2 2006/10/08 22:10:31 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
 # rotate images, and remove red eyes (if lucky)
-
-# XXX todo: openfile/savefile: preserve paths, as in ini
 
 use strict;
 use warnings;
