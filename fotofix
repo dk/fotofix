@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.2 2006/10/08 22:10:31 dk Exp $
+# $Id: fotofix,v 1.3 2006/10/09 12:25:07 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -140,7 +140,7 @@ sub update_window_size
 {
 	return unless $iv-> image;
 
-	if ( $ini->{WindowFit}) {
+	if ( $ini->{WindowFit} and not $fullscreen) {
 		my @is = $iv-> image-> size;
 		my @as = $iv-> get_active_area(2, get_client_size());
 	
@@ -152,13 +152,11 @@ sub update_window_size
 		my $y = $as[1] / $is[1];
 		my $z = round_zoom((($x < $y) ? $x : $y));
 
-		unless ( $fullscreen ) {
-			$w-> size( map { $z * $_ } @is);
-			my @fs = $w-> frameSize;
-			$w-> frameOrigin(0,
-				$::application-> height - $fs[1]
-			);
-		}
+		$w-> size( map { $z * $_ } @is);
+		my @fs = $w-> frameSize;
+		$w-> frameOrigin(0,
+			$::application-> height - $fs[1]
+		);
 	}
 	
 	if ( $ini->{WindowFit} or $ini->{AutoBestFit}) {
@@ -427,7 +425,8 @@ sub zbestfit
 	
 	my $x = $szB[0] / $szA[0];
 	my $y = $szB[1] / $szA[1];
-	zoom_set( $x < $y ? $x : $y);
+
+	zoom_set( $x < $y ? $x : $y, $fullscreen);
 }
 
 sub region_set
@@ -612,7 +611,15 @@ sub zoom_scale
 
 sub zoom_set
 {
-	$iv-> zoom(shift);
+	my ($z, $or_less_than) = @_;
+
+	# in fullscreen, zoom roundoffs may create a slighlty larger zoom, 
+	# which might result in (undesirable) scrollbars
+	if ( $or_less_than) {
+		my $zx = round_zoom( $z);
+		$z -= 0.01 if $zx > $z;
+	}
+	$iv-> zoom($z);
 	update_window_title();
 }
 
