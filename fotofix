@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.3 2006/10/09 12:25:07 dk Exp $
+# $Id: fotofix,v 1.4 2006/10/09 22:37:33 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -9,7 +9,7 @@ use strict;
 use warnings;
 use Prima qw(
 	Application ImageViewer StdDlg
-	MsgBox IniFile
+	MsgBox IniFile EventHook
 );
 use IPA::Misc qw(/./);
 use IPA::Point qw(/./);
@@ -22,10 +22,11 @@ my (
 	$ini,
 	@neighbour_files_cache,
 	$filename, $filecodec,
-	$region, %icons,
+	$region, %icons, @window_rect,
 	$current_pixel,
 );
 my $fullscreen = 0;
+my $fullscreen_x11 = $::application-> get_system_info->{apc} == apc::Unix;
 my $modified   = 0;
 my $conversion = ict::Optimized;
 my $conversion_menuid = 'P';
@@ -194,31 +195,67 @@ sub update_window_size
 	}
 }
 
-sub fullscreen
+# In X11 we can only guarantee fullscreen by creating a non-WM-manageable widget.
+# This is portable, but we cannot bring dialogs forward, so we must deal with it
+# by turning the fullscreen mode off
+sub fullscreen_x11
 {
 	my $f = shift() ? 1 : 0;
 	return if $fullscreen == $f;
 	if ( $fullscreen = $f) {
+		$iv-> set(
+			origin      => [0,0],
+			size        => [ $::application-> size],
+			backColor   => cl::Black,
+			owner       => $::application,
+		);
+	} else {
+		$iv-> set(
+			origin      => [0,0],
+			size        => [ $w-> size],
+			backColor   => cl::Back,
+			owner       => $w,
+		);
+	}
+	update_window_size();
+}
+
+# X11 method doesn't work nice for win32, because the cursed start panel stays in front
+# of a non-toplevel widget, but not in front of a top-level window. Go figure. But on
+# a positive side, we can stop flipping back from fullscreen mode whenever we need a dialog.
+sub fullscreen_win32
+{
+	my $f = shift() ? 1 : 0;
+	return if $fullscreen == $f;
+	if ( $fullscreen = $f) {
+		@window_rect = $w-> rect;
 		$w-> set(
+			origin      => [0,0],
+			size        => [ $::application-> size],
+			backColor   => cl::Black,
 			borderIcons => 0,
 			borderStyle => bs::None,
 		);
-		$iv-> backColor(cl::Black);
-		$w-> backColor(cl::Black);
+		$iv-> backColor( cl::Black);
 		$menu-> selected(0);
 		$w-> bring_to_front;
-		$w-> maximize;
 	} else {
 		$w-> set(
+			rect        => \@window_rect,
+			backColor   => cl::Back,
 			borderIcons => bi::All,
 			borderStyle => bs::Sizeable,
 		);
-		$iv-> backColor(cl::Back);
-		$w-> backColor(cl::Back);
 		$menu-> selected(1);
-		$w-> restore;
 	}
 	update_window_size();
+}
+
+sub fullscreen
+{
+	$fullscreen_x11 ?
+		&fullscreen_x11 : 
+		&fullscreen_win32;
 }
 
 sub open_image
@@ -561,6 +598,20 @@ sub iv_mousemove
 	}
 }
 
+sub iv_keydown
+{
+	my $self = shift;
+	if ( $fullscreen) {
+		my ( $code, $key, $mod, $rep) = @_;
+		if ( $key == kb::Enter) {
+			fullscreen(0);
+			$self-> clear_event;
+		} else {
+			$w-> key_down(@_);
+		}
+	}
+}
+
 sub iv_paint
 {
 	my ( $self, $canvas) = @_;
@@ -675,7 +726,7 @@ sub image_invert
 	
 	# doesn't work on floats
 	return message('Unimplemented') 
-		if im::RealNumber <= $iv-> image-> type & im::Category;
+		if im::RealNumber <= ($iv-> image-> type & im::Category);
 
 	if ( $region) {
 		my $i = region_image();
@@ -699,7 +750,7 @@ sub image_remove_red_eyes
 	my $HueDiff = 1.0;
 	
 	return message('Can only work on color images') 
-		if im::Color != $iv-> image-> type & im::Category;
+		if im::Color != ($iv-> image-> type & im::Category);
 	
 	my $i = region_image();
 	$i-> type( im::RGB); # split_channels accepts RGB only
@@ -880,7 +931,16 @@ $iv = $w-> insert( ImageViewer =>
 	onMouseUp   => \&iv_mouseup,
 	onMouseMove => \&iv_mousemove,
 	onPaint     => \&iv_paint,
+
+	( $fullscreen_x11 ? (
+	onKeyDown   => \&iv_keydown
+	) : ()),
 );
+
+Prima::EventHook::install( 
+	sub { fullscreen(0) },
+	event  => 'Execute',
+) if $fullscreen_x11;
 
 update_menu_status();
 update_window_title();
