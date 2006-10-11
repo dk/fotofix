@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.5 2006/10/11 19:28:47 dk Exp $
+# $Id: fotofix,v 1.6 2006/10/11 21:56:37 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -372,6 +372,11 @@ sub fitting_set
 		next if $_ eq $type;
 		$ini->{$_} = 0;
 		$menu-> uncheck( $_);
+	}
+
+	if ( $type ne 'ImageFit' and not $ini->{$type}) {
+		$ini->{ImageFit} = 1;
+		$menu-> check( 'ImageFit');
 	}
 
 	update_window_size();
@@ -941,7 +946,7 @@ $w = Prima::Window-> create( menuItems => [
 		( $ini->{WindowFit} ? '*' : '') .
 		'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
 		],[ ( $ini->{ImageFit} ? '*' : '') .
-		'ImageFit' => 'Fit to ~image' => \&fitting_set,
+		'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
 		],
 		[],
 		['25%' =>   sub{zoom_set 0.25}],
