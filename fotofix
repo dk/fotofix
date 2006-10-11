@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.4 2006/10/09 22:37:33 dk Exp $
+# $Id: fotofix,v 1.5 2006/10/11 19:28:47 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -15,19 +15,39 @@ use IPA::Misc qw(/./);
 use IPA::Point qw(/./);
 use IPA::Geometry qw(/./);
 
+
 my $VERSION = 0.01;
 
+# If on, can be (not necessarily) , faster but surely will cost extra memory. 
+# Since X11 doesn't support scaled image output, this doesn't matter, and should be
+# always disabled. Win32 on the contrary does, but might (or might not) be slower
+# than Prima native image scaling.
+my $UseBufferedZoom =
+	$::application-> get_system_info->{apc} != apc::Unix;
+
+# This is the only parameter the red eye detector cares about, and is a balance of 
+# how much green and blue should be there to counterbalance the red. For example,
+# 1.0 (default) will remove these red spots where the intensity or red is more
+# than sum of intensities of blue and green. $HueDiff less than 1 makes the detector 
+# to behave more aggressively, whereas $HueDiff more than 1 makes it be more strict about 
+# what is to be considered the red hue. Values outside 0.8-2.0 are probably not
+# practically useful.
+my $RedEyesHueDiff = 1.0;
+
+
 my ( 
-	$w, $menu, $iv, 
+	$w, $menu, $iv, $image, 
 	$ini,
+	$want_prebuffered_zoom, $use_prebuffered_zoom,
 	@neighbour_files_cache,
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
 	$current_pixel,
 );
-my $fullscreen = 0;
+my $zoom = 1.0;
 my $fullscreen_x11 = $::application-> get_system_info->{apc} == apc::Unix;
 my $modified   = 0;
+my $fullscreen = 0;
 my $conversion = ict::Optimized;
 my $conversion_menuid = 'P';
 my %image_format_category = (
@@ -56,9 +76,205 @@ DD
 }
 
 
+sub image_set
+{
+	$image = shift;
+	$use_prebuffered_zoom = $want_prebuffered_zoom ? 
+		can_use_prebuffered_zoom() : 
+		0;
+
+	if ( $use_prebuffered_zoom) {
+		my $g = $image-> dup;
+		$g-> size( $image-> width * $zoom + .5, $image-> height * $zoom + .5);
+		$iv-> zoom( 1.0);
+		$iv-> image( $g);
+	} else {
+		$iv-> image( $image);
+		$iv-> zoom( $zoom);
+	}
+	$iv-> palette( $image-> palette);
+}
+
+sub image_replace
+{
+	my $i = shift;
+	$region = undef;
+
+	image_set( $i);
+	
+	$modified = 1;
+	update_window_title();
+	update_menu_status();
+	update_window_size();
+}
+
+sub can_use_prebuffered_zoom
+{
+	return 0 unless $UseBufferedZoom;
+
+	my @as = $::application-> size;
+	return 0 if 
+		$zoom * $image-> width  > $as[0] or
+		$zoom * $image-> height > $as[1];
+
+	return 0 if $zoom == 1.0; # duh
+
+	return 0 if int($zoom) == $zoom; # this seems good enough for win32 GDI
+
+	1;
+}
+
+sub zoom_set
+{
+	($zoom, $want_prebuffered_zoom) = @_;
+	$zoom = 0.02 if $zoom < 0.02;
+	$zoom = 100  if $zoom > 100;
+
+	$use_prebuffered_zoom = $want_prebuffered_zoom ? 
+		can_use_prebuffered_zoom() : 
+		0;
+
+	if ( $use_prebuffered_zoom) {
+		my $g = $image-> dup;
+		$g-> size( $image-> width * $zoom + .5, $image-> height * $zoom +.5);
+		$iv-> zoom( 1.0);
+		$iv-> image( $g);
+		$iv-> palette( $g-> palette);
+	} else {
+		$iv-> image( $image);
+		$iv-> zoom( $zoom);
+	}
+	update_window_title();
+}
+
+# copy-paste from ImageViewer.pm: it cannot do arbitrary zoom factors, only
+# with fractional parts from 0.02 to 0.98 with 0.01-0.02 steps
+sub zoom_round
+{
+	my $zoom = shift;
+	$zoom = 100 if $zoom > 100;
+	$zoom = 1 if $zoom <= 0.01;
+	my $dv = int( 100 * ( $zoom - int( $zoom)) + 0.5);
+	$dv-- if ($dv % 2) and ( $dv % 5);
+	return int($zoom) + $dv / 100;
+}
+		
+# returns zoom factor required to fit the image to the given size
+sub zoom_from_window_size
+{
+	my @xs = @_;
+	my @is = $image-> size;
+	my @as = $iv-> get_active_area(2, @xs);
+
+	# expect scrollbars to disappear
+	$as[0] += $iv-> VScroll-> width  - 1 if $iv-> vScroll;
+	$as[1] += $iv-> HScroll-> height - 1 if $iv-> hScroll;
+
+	my $x = $as[0] / $is[0];
+	my $y = $as[1] / $is[1];
+	my $zoom = ($x < $y) ? $x : $y;
+		
+	# Zoom roundoffs may create a slighlty larger zoom which might result 
+	# in (undesirable) scrollbars. We fight this by reducing zoom factor slightly.
+	$zoom = zoom_round( $zoom);
+	$zoom -= 0.01 if grep { $xs[$_] < int($is[$_] * $zoom + .5)} (0,1);
+
+	return $zoom;
+}
+
+sub zoom_scale { zoom_set $zoom * shift }
+
+sub zoom_best_fit
+{
+	zoom_set( zoom_from_window_size( $iv-> size), 1);
+}
+
+sub convert_screen_to_point
+{
+	return $iv-> screen2point(@_) unless $use_prebuffered_zoom;
+
+	my $ivzoom = $iv-> zoom;
+	return map { $_ * $ivzoom / $zoom } $iv-> screen2point(@_);
+}
+
+sub convert_point_to_screen
+{
+	return $iv-> point2screen(@_) unless $use_prebuffered_zoom;
+	
+	my $ivzoom = $iv-> zoom;
+	return $iv-> point2screen( map { $_ * $zoom / $ivzoom } @_);
+}
+
+sub region_set
+{
+	my @r = map { int } ( @_ ? @_ : (0,0,0,0));
+	return unless $image;
+
+	my @s = $image-> size;
+	@r[0,2] = @r[2,0] if $r[2] < $r[0];
+	@r[1,3] = @r[3,1] if $r[3] < $r[1];
+	for ( @r) {
+		$_ = 0 if $_ < 0;
+	}
+	$r[0] = 0 if $r[0] < 0;
+	$r[1] = 0 if $r[1] < 0;
+	$r[2] = $s[0] - 1 if $r[2] >= $s[0];
+	$r[3] = $s[1] - 1 if $r[3] >= $s[1];
+
+	@r = (0,0,0,0) if 
+		$r[0] >= $s[0] or
+		$r[1] >= $s[1] or
+		$r[2] < 0 or
+		$r[3] < 0 or
+		( $r[0] == $r[2] and $r[1] == $r[3]);
+
+	my $r = $region;
+	$region = ( grep { $_ != 0 } @r ) ? \@r : undef;
+
+	return if not defined($r) and not defined($region);
+	
+	$iv-> repaint;
+}
+
+sub region_image
+{
+	$region ? 
+		$image-> extract(
+			$region->[0],
+			$region->[1],
+			$region->[2] - $region->[0],
+			$region->[3] - $region->[1],
+		) : $image;
+}
+
+sub draw_marquee
+{
+	my $o = $::application;
+	$o-> begin_paint;
+	$o-> rect_focus(
+		$iv-> client_to_screen(
+			convert_point_to_screen( 
+				@{$iv}{qw(x y marquee_x marquee_y)}
+			)
+		)
+	);
+	$o-> end_paint;
+}
+
+
+sub get_client_size
+{
+	my @as = $::application-> size;
+	$as[0] -= $::application-> get_system_value(sv::XbsSizeable) * 2;
+	$as[1] -= $::application-> get_system_value(sv::YbsSizeable) * 2
+		+ $::application-> get_system_value(sv::YMenu) 
+		+ $::application-> get_system_value(sv::YTitleBar);
+	@as;
+}
+
 sub update_window_title
 {
-	my $img = $iv-> image;
+	my $img = $image;
 	my $str;
 	if ( $img) {
 		$str = $filename;
@@ -78,7 +294,7 @@ sub update_window_title
 	} elsif ( defined $current_pixel) {
 		$str .= " $current_pixel";
 	} else {
-		$str .= ' ' . 100 * $iv-> zoom . '%';
+		$str .= ' ' . int(100 * $zoom) . '%';
 	}
 
 	my $is_modified = $modified ? '* ' : '';
@@ -88,7 +304,7 @@ sub update_window_title
 
 sub update_menu_status
 {
-	my $x = $iv-> image ? 1 : 0;
+	my $x = $image ? 1 : 0;
 	$menu-> enabled( $_ , $x) for qw(
 		saveas next prev first last 
 		convert copy view rotate effects
@@ -101,59 +317,14 @@ sub update_menu_status
 	$menu-> enabled( $_, $x) for qw(save delete);
 }
 
-sub replace_image
-{
-	my $i = shift;
-	$region = undef;
-
-	$iv-> image( $i);
-	$iv-> palette( $i-> palette);
-	
-	$modified = 1;
-	update_window_title();
-	update_menu_status();
-	update_window_size();
-}
-
-# copy-paste from ImageViewer.pm: it cannot do arbitrary zoom factors, only
-# with fractional parts from 0.02 to 0.98 with 0.01-0.02 steps
-sub round_zoom
-{
-	my $zoom = shift;
-	$zoom = 100 if $zoom > 100;
-	$zoom = 1 if $zoom <= 0.01;
-	my $dv = int( 100 * ( $zoom - int( $zoom)) + 0.5);
-	$dv-- if ($dv % 2) and ( $dv % 5);
-	return int($zoom) + $dv / 100;
-}
-
-sub get_client_size
-{
-	my @as = $::application-> size;
-	$as[0] -= $::application-> get_system_value(sv::XbsSizeable) * 2;
-	$as[1] -= $::application-> get_system_value(sv::YbsSizeable) * 2
-		+ $::application-> get_system_value(sv::YMenu) 
-		+ $::application-> get_system_value(sv::YTitleBar);
-	@as;
-}
-
 sub update_window_size
 {
-	return unless $iv-> image;
+	return unless $image;
 
 	if ( $ini->{WindowFit} and not $fullscreen) {
-		my @is = $iv-> image-> size;
-		my @as = $iv-> get_active_area(2, get_client_size());
-	
-		# expect scrollbars to disappear
-		$as[0] += $iv-> VScroll-> width  if $iv-> vScroll;
-		$as[1] += $iv-> HScroll-> height if $iv-> hScroll;
-	
-		my $x = $as[0] / $is[0];
-		my $y = $as[1] / $is[1];
-		my $z = round_zoom((($x < $y) ? $x : $y));
-
-		$w-> size( map { $z * $_ } @is);
+		my $z = zoom_from_window_size( get_client_size());
+		$w-> size( map { $z * $_ + .5 } $image-> size);
+		
 		my @fs = $w-> frameSize;
 		$w-> frameOrigin(0,
 			$::application-> height - $fs[1]
@@ -161,23 +332,19 @@ sub update_window_size
 	}
 	
 	if ( $ini->{WindowFit} or $ini->{AutoBestFit}) {
-		zbestfit();
-	} elsif ( not $fullscreen) {
+		zoom_best_fit();
+	} elsif ( $ini->{ImageFit} and not $fullscreen) {
 		# bring window size to the image's
 
-		my @is = $iv-> image-> size;
-		
-		$is[0] += $iv-> {indents}->[0] + $iv-> {indents}->[2];
-		$is[1] += $iv-> {indents}->[1] + $iv-> {indents}->[3];
+		my @is = $image-> size;
 		
 		my @as = get_client_size();
 
-		zoom_set(1.0);
+		zoom_set(1.0, 0);
 		update_window_title();
 		$is[0] = $as[0] if $is[0] > $as[0];
 		$is[1] = $as[1] if $is[1] > $as[1];
 
-		
 		for ( 0,1) {
 			my @fo = $w-> frameOrigin;
 			my @fs1 = $w-> frameSize;
@@ -193,6 +360,21 @@ sub update_window_size
 			$is[1] = $ws[1] if $is[1] < $ws[1];
 		}
 	}
+}
+
+sub fitting_set
+{
+	my ( $self, $type) = @_;
+
+	$ini->{$type} = $menu-> toggle( $type);
+
+	for ( qw(AutoBestFit ImageFit WindowFit)) {
+		next if $_ eq $type;
+		$ini->{$_} = 0;
+		$menu-> uncheck( $_);
+	}
+
+	update_window_size();
 }
 
 # In X11 we can only guarantee fullscreen by creating a non-WM-manageable widget.
@@ -246,6 +428,7 @@ sub fullscreen_win32
 			borderIcons => bi::All,
 			borderStyle => bs::Sizeable,
 		);
+		$iv-> backColor( cl::Back);
 		$menu-> selected(1);
 	}
 	update_window_size();
@@ -275,8 +458,8 @@ sub open_image
 		$filecodec = $i-> {extras}->{codecID};
 		$ini-> {Path} = $dlg-> directory;
 
-		$iv-> image( $i);
-		$iv-> palette( $i-> palette);
+		$zoom = 1.0;
+		image_set( $i);
 
 		update_window_size();
 		update_window_title();
@@ -298,8 +481,8 @@ sub open_new_image
 		@neighbour_files_cache = ();
 		$filecodec = $i-> {extras}->{codecID};
 
-		$iv-> image( $i);
-		$iv-> palette( $i-> palette);
+		$zoom = 1.0;
+		image_set( $i);
 
 		update_window_size();
 		update_window_title();
@@ -325,7 +508,7 @@ sub get_dir_list
 	my $exts = join('|', map { @{$_->{fileExtensions}} } @{Prima::Image-> codecs});
 	my $rx = qr/\.($exts)$/i;
 	return unless opendir D, $basedir;
-	my @files = grep { /$rx/ } readdir D; 
+	my @files = grep { /$rx/ } sort readdir D; 
 	closedir D;
 
 	my $found;
@@ -382,7 +565,7 @@ sub open_next_image
 
 sub save_image
 {
-	unless ( $iv-> image-> save( $filename)) {
+	unless ( $image-> save( $filename)) {
 		message('Cannot save '.$filename . ":$@");
 		return 0;
 	}
@@ -394,12 +577,12 @@ sub save_image
 sub save_image_as
 {
 	my $ok;
-	$iv-> image-> {extras}->{codecID} = $filecodec;
+	$image-> {extras}->{codecID} = $filecodec;
 	my $dlg = Prima::ImageSaveDialog-> create( 
-		image     => $iv-> image,
+		image     => $image,
 		directory => $ini-> {Path},
 	);
-	if ( $dlg-> save( $iv-> image)) {
+	if ( $dlg-> save( $image)) {
 		$filename = $dlg-> fileName;
 		$modified = 0;
 		$ok = 1;
@@ -451,86 +634,11 @@ sub on_close
 	shift-> clear_event unless can_close_image()
 }
 
-sub zbestfit
-{
-	my @szA = $iv-> image-> size;
-	my @szB = $iv-> get_active_area(2);
-	
-	# expect scrollbars to disappear
-	$szB[0] += $iv-> VScroll-> width  if $iv-> vScroll;
-	$szB[1] += $iv-> HScroll-> height if $iv-> hScroll;
-	
-	my $x = $szB[0] / $szA[0];
-	my $y = $szB[1] / $szA[1];
-
-	zoom_set( $x < $y ? $x : $y, $fullscreen);
-}
-
-sub region_set
-{
-	my @r = map { int } ( @_ ? @_ : (0,0,0,0));
-	my $i = $iv-> image;
-	return unless $i;
-
-	my @s = $i-> size;
-	@r[0,2] = @r[2,0] if $r[2] < $r[0];
-	@r[1,3] = @r[3,1] if $r[3] < $r[1];
-	for ( @r) {
-		$_ = 0 if $_ < 0;
-	}
-	$r[0] = 0 if $r[0] < 0;
-	$r[1] = 0 if $r[1] < 0;
-	$r[2] = $s[0] - 1 if $r[2] >= $s[0];
-	$r[3] = $s[1] - 1 if $r[3] >= $s[1];
-
-	@r = (0,0,0,0) if 
-		$r[0] >= $s[0] or
-		$r[1] >= $s[1] or
-		$r[2] < 0 or
-		$r[3] < 0 or
-		( $r[0] == $r[2] and $r[1] == $r[3]);
-
-	my $r = $region;
-	$region = ( grep { $_ != 0 } @r ) ? \@r : undef;
-
-	return if not defined($r) and not defined($region);
-	
-	$iv-> repaint;
-}
-
-sub region_image
-{
-	my $i = $iv-> image;
-	
-	$region ? 
-		$i-> extract(
-			$region->[0],
-			$region->[1],
-			$region->[2] - $region->[0],
-			$region->[3] - $region->[1],
-		) : $i;
-}
-
-sub draw_marquee
-{
-	my $o = $::application;
-	$o-> begin_paint;
-	$o-> rect_focus(
-		$iv-> client_to_screen(
-			$iv-> point2screen( 
-				@{$iv}{qw(x y marquee_x marquee_y)}
-			)
-		)
-	);
-	$o-> end_paint;
-}
-
-
 sub iv_mousedown
 {
 	my ( $self, $btn, $mod, $x, $y) = @_;
 
-	return if $self-> {drag} or not $iv-> image;
+	return if $self-> {drag} or not $image;
 	
 	if ( $btn == mb::Right) {
 		$self-> {x} = $x;
@@ -538,15 +646,15 @@ sub iv_mousedown
 		$self-> {wasdx} = $self-> deltaX;
 		$self-> {wasdy} = $self-> deltaY;
 		$self-> pointer( $icons{hand});
+		$self-> capture(1);
 	} elsif ( $btn == mb::Left) {
-		@{$self}{qw(x y marquee_x marquee_y)} = map { int } $self-> screen2point( $x, $y, $x, $y);
+		@{$self}{qw(x y marquee_x marquee_y)} = map { int } convert_screen_to_point( $x, $y, $x, $y);
+		$self-> capture(1, $self);
 	} else {
 		return;
 	}
 	
 	$self-> {drag} = $btn;
-	
-	$self-> capture(1);
 }
 
 sub iv_mouseup
@@ -562,7 +670,7 @@ sub iv_mouseup
 	} elsif ( $btn == mb::Left) {
 		draw_marquee();
 		delete @{$self}{qw(marquee_x marquee_y})};
-		region_set( @{$self}{qw(x y)}, $self-> screen2point( $x, $y));
+		region_set( @{$self}{qw(x y)}, convert_screen_to_point( $x, $y));
 		update_menu_status();
 	}
 }
@@ -573,13 +681,12 @@ sub iv_mousemove
 
 	if ( not $self-> {drag}) {
 		if ( $mod & km::Shift) {
-			my $i = $self-> image;
-			my $p = $i-> pixel( $self-> screen2point($x, $y));
+			my $p = $image-> pixel( convert_screen_to_point($x, $y));
 			$current_pixel = ( $p == cl::Invalid) ? 
 				undef : 
 				sprintf(
-					$image_format_category{$i->type & im::Category},
-					$i-> pixel( $self-> screen2point($x, $y))
+					$image_format_category{$image->type & im::Category},
+					$image-> pixel( convert_screen_to_point($x, $y))
 				);
 			update_window_title();
 		} elsif ( defined $current_pixel) {
@@ -592,7 +699,7 @@ sub iv_mousemove
 		$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
 	} elsif ( $self-> {drag} == mb::Left) {
 		draw_marquee();
-		@{$self}{qw(marquee_x marquee_y)} = map { int } $self-> screen2point($x, $y);
+		@{$self}{qw(marquee_x marquee_y)} = map { int } convert_screen_to_point($x, $y);
 		draw_marquee();	
 		update_window_title();
 	}
@@ -624,7 +731,7 @@ sub iv_paint
 	if ( $region) {
 		$canvas-> color( cl::Set);
 		$canvas-> rop( rop::XorPut);
-		$canvas-> rectangle( $self-> point2screen( @$region));
+		$canvas-> rectangle( convert_point_to_screen( @$region));
 	}
 }
 
@@ -641,40 +748,7 @@ sub iv_mousewheel
 	}
 }
 
-
-sub iv_size
-{
-	zbestfit($w) if $ini-> {AutoBestFit};
-}
-
-sub zoom_scale
-{
-	my $zoom = shift;
-	my $current = $iv-> zoom;
-	my $try = $current;
-
-	while ( $iv-> zoom == $current) {
-		last if $try < 0.01 or $try > 100;
-		$iv-> zoom( $try *= $zoom);
-	}
-	update_window_title();
-}
-
-sub zoom_set
-{
-	my ($z, $or_less_than) = @_;
-
-	# in fullscreen, zoom roundoffs may create a slighlty larger zoom, 
-	# which might result in (undesirable) scrollbars
-	if ( $or_less_than) {
-		my $zx = round_zoom( $z);
-		$z -= 0.01 if $zx > $z;
-	}
-	$iv-> zoom($z);
-	update_window_title();
-}
-
-sub setconv
+sub conversion_set
 {
 	my ( $self, $menuID) = @_;
 	return if $conversion_menuid eq $menuID;
@@ -691,11 +765,11 @@ sub setconv
 
 sub image_convert
 {
-	$iv-> image-> set(
+	$image-> set(
 		conversion => $conversion,
 		type       => shift,
 	);
-	replace_image( $iv-> image);
+	image_replace( $image);
 }
 
 sub image_rotate
@@ -703,20 +777,20 @@ sub image_rotate
 	my $d = shift;
 	my $i;
 	if ( $d == 90) {
-		$i = rotate90( $iv-> image, 1);
+		$i = rotate90( $image, 1);
 	} elsif ( $d == 180) {
-		$i = rotate180( $iv-> image);
+		$i = rotate180( $image);
 	} elsif ( $d == 270) {
-		$i = rotate90( $iv-> image, 0);
+		$i = rotate90( $image, 0);
 	} else {
 		die "invalid call to image_rotate:$d\n";
 	}
-	replace_image($i);
+	image_replace($i);
 }
 
 sub image_mirror
 {	
-	replace_image( mirror( $iv-> image, type => 1 + shift));
+	image_replace( mirror( $image, type => 1 + shift));
 }
 
 sub image_invert
@@ -726,47 +800,38 @@ sub image_invert
 	
 	# doesn't work on floats
 	return message('Unimplemented') 
-		if im::RealNumber <= ($iv-> image-> type & im::Category);
+		if im::RealNumber <= ($image-> type & im::Category);
 
 	if ( $region) {
 		my $i = region_image();
 		$i-> data( ~$i-> data);
-		$iv-> image-> put_image( @$region[0,1], $i);
+		$image-> put_image( @$region[0,1], $i);
 	} else {
-		$iv-> image-> data( ~$iv-> image-> data);
+		$image-> data( ~$image-> data);
 	}
-	replace_image($iv-> image);
+	image_replace($image);
 }
 
 sub image_remove_red_eyes
 {
-	# This is the only parameter the detector cares about, and is a balance of 
-	# how much green and blue should be there to counterbalance the red. For example,
-	# 1.0 (default) will remove these red spots where the intensity or red is more
-	# than sum of intensities of blue and green. $HueDiff less than 1 makes the detector 
-	# to behave more aggressively, whereas $HueDiff more than 1 makes it be more strict about 
-	# what is to be considered the red hue. Values outside 0.8-2.0 are probably not
-	# practically useful.
-	my $HueDiff = 1.0;
-	
 	return message('Can only work on color images') 
-		if im::Color != ($iv-> image-> type & im::Category);
+		if im::Color != ($image-> type & im::Category);
 	
 	my $i = region_image();
 	$i-> type( im::RGB); # split_channels accepts RGB only
 	my ( $r, $g, $b) = @{split_channels( $i)};
 	my ( $G, $B);
 
-	if ( $HueDiff < 0.9999 or $HueDiff > 1.001) {
+	if ( $RedEyesHueDiff < 0.9999 or $RedEyesHueDiff > 1.001) {
 		$G = $g-> dup;
 		$g-> type(im::Short);
-		$g = ab( $g, $HueDiff, 0);
+		$g = ab( $g, $RedEyesHueDiff, 0);
 		$g = threshold( $g, false => 255, maxvalue => 255, preserve => 1);
 		$g-> type(im::Byte);
 
 		$B = $b-> dup;
 		$b-> type(im::Short);
-		$b = ab( $b, $HueDiff, 0);
+		$b = ab( $b, $RedEyesHueDiff, 0);
 		$b = threshold( $b, false => 255, maxvalue => 255, preserve => 1);
 		$b-> type(im::Byte);
 	} else {
@@ -792,11 +857,11 @@ sub image_remove_red_eyes
 	# combine back
 	$i = combine_channels([$r,$G,$B], 'rgb');
 	# put the area back to the big image
-	$i-> type( $iv-> image-> type);
-	$iv-> image-> put_image( @$region[0,1], $i);
+	$i-> type( $image-> type);
+	$image-> put_image( @$region[0,1], $i);
 
 	undef $region;
-	replace_image($iv-> image);
+	image_replace($image);
 }
 
 $ini = Prima::IniFile-> create( 
@@ -805,6 +870,7 @@ $ini = Prima::IniFile-> create(
 			'Main' => [
 				AutoBestFit => 0,
 				WindowFit   => 0,
+				ImageFit    => 0,
 				Path        => '.',
 			],
 		],
@@ -832,11 +898,11 @@ $w = Prima::Window-> create( menuItems => [
 		}],
 		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
 			my $i = $::application-> Clipboard-> image;
-			replace_image( $i) if $i;
+			image_replace( $i) if $i;
 		}],
 		['-crop' => 'Cr~op' => sub {
-			return unless $iv-> image and $region;
-			replace_image( region_image());
+			return unless $image and $region;
+			image_replace( region_image());
 		}],
 		[],
 		[ 'convert' => 'Con~vert to'=> [
@@ -846,10 +912,10 @@ $w = Prima::Window-> create( menuItems => [
 			['~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
 			['~RGB'        => sub {image_convert(im::RGB)}],
 			[],
-			['N' => '~No halftoning'   => \&setconv,],
-			['O' => '~Ordered'         => \&setconv,],
-			['E' => '~Error diffusion' => \&setconv,], 
-			['*P' => 'O~ptimized'      => \&setconv,], 
+			['N' => '~No halftoning'   => \&conversion_set],
+			['O' => '~Ordered'         => \&conversion_set],
+			['E' => '~Error diffusion' => \&conversion_set], 
+			['*P' => 'O~ptimized'      => \&conversion_set], 
 		]],
 		[ 'rotate' => '~Rotate and mirror' => [
 			['Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(90) }],
@@ -869,22 +935,14 @@ $w = Prima::Window-> create( menuItems => [
 		['F~ull screen' => 'Enter' => kb::Enter => sub {
 			fullscreen( not $fullscreen);
 		}],
-		[
-		( $ini->{AutoBestFit} ? '*' : '') .
-		'abfit' => 'Fit to ~window' => 'M' => 'm' => sub{
-			$ini-> {WindowFit} = 0;
-			$menu-> winfit-> uncheck;	
-			$ini-> {AutoBestFit} = $menu-> abfit-> toggle;
-			update_window_size();
-		}],
-		[
+		[ ( $ini->{AutoBestFit} ? '*' : '') .
+		'AutoBestFit' => 'Fit to ~window' => 'M' => 'm' => \&fitting_set,
+		],[
 		( $ini->{WindowFit} ? '*' : '') .
-		'winfit' => '~Fit to screen' => 'F' => 'f' => sub {
-			$ini-> {AutoBestFit} = 0;
-			$menu-> abfit-> uncheck;
-			$ini-> {WindowFit} = $menu-> winfit-> toggle;
-			update_window_size();
-		}],
+		'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
+		],[ ( $ini->{ImageFit} ? '*' : '') .
+		'ImageFit' => 'Fit to ~image' => \&fitting_set,
+		],
 		[],
 		['25%' =>   sub{zoom_set 0.25}],
 		['~50%' =>  sub{zoom_set 0.5 }],
@@ -950,6 +1008,9 @@ open_new_image( $ARGV[0]) if @ARGV;
 
 $w-> show;
 $w-> select;
+
+# uncomment this for simple benchmarking
+# open_next_image($w,'next') for 0..20; exit; 
 
 run Prima;
 
