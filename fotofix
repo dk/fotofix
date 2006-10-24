@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.6 2006/10/11 21:56:37 dk Exp $
+# $Id: fotofix,v 1.7 2006/10/24 14:59:56 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -323,12 +323,16 @@ sub update_window_size
 
 	if ( $ini->{WindowFit} and not $fullscreen) {
 		my $z = zoom_from_window_size( get_client_size());
-		$w-> size( map { $z * $_ + .5 } $image-> size);
+		$w-> set(
+			size   => [ map { $z * $_ + .5 } $image-> size ],
+			$ini->{AutoPosition} ? 
+				( top => $w-> top ) : ()
+		);
 		
 		my @fs = $w-> frameSize;
 		$w-> frameOrigin(0,
 			$::application-> height - $fs[1]
-		);
+		) if $ini->{AutoPosition};
 	}
 	
 	if ( $ini->{WindowFit} or $ini->{AutoBestFit}) {
@@ -348,9 +352,14 @@ sub update_window_size
 		for ( 0,1) {
 			my @fo = $w-> frameOrigin;
 			my @fs1 = $w-> frameSize;
-			$w-> size( @is);
+			$w-> set(	
+				size => \@is,
+				( $ini->{AutoPosition} ? 
+					( top => $w-> top ) : ())
+			);
 			my @fs2 = $w-> frameSize;
-			$w-> frameOrigin( $fo[0], $fo[1] + $fs1[1] - $fs2[1]);
+			$w-> frameOrigin( $fo[0], $fo[1] + $fs1[1] - $fs2[1])
+				if $ini->{AutoPosition};
 			# changing frame size is a tricky business, menu might wrap,
 			# window manager might behave strangely, etc... give it
 			# just one more try to set the minimum client size we want
@@ -873,10 +882,11 @@ $ini = Prima::IniFile-> create(
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
 			'Main' => [
-				AutoBestFit => 0,
-				WindowFit   => 0,
-				ImageFit    => 0,
-				Path        => '.',
+				AutoBestFit  => 0,
+				WindowFit    => 0,
+				ImageFit     => 0,
+				Path         => '.',
+				AutoPosition => 0,
 			],
 		],
 )-> section('Main');
@@ -947,7 +957,10 @@ $w = Prima::Window-> create( menuItems => [
 		'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
 		],[ ( $ini->{ImageFit} ? '*' : '') .
 		'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
-		],
+		],[ ( $ini->{AutoPosition} ? '*' : '') .
+		'AutoPosition' => 'Change window ~position when resizing' => sub {
+			$ini->{$_[1]} = $menu-> toggle( $_[1]);
+		} ],
 		[],
 		['25%' =>   sub{zoom_set 0.25}],
 		['~50%' =>  sub{zoom_set 0.5 }],
@@ -972,6 +985,10 @@ FotoFix v$VERSION by Dmitry Karasik
 A simple image viewer
 ABOUT
 	]]],
+
+	accelItems => [
+		[ quit => quit => q => sub {$::application-> close }],
+	],
 
 	icon      => Prima::StdBitmap::icon(0),
 	visible   => 0,
@@ -1009,7 +1026,16 @@ update_menu_status();
 update_window_title();
 update_window_size();
 
-open_new_image( $ARGV[0]) if @ARGV;
+if ( @ARGV) {
+	if ( -f $ARGV[0]) {
+		open_new_image( $ARGV[0]);
+	} elsif ( -d $ARGV[0]) {
+		$filename = "$ARGV[0]/.";
+		open_next_image($w, 'next');
+	} else {
+		message("$ARGV[0] cannot be opened");
+	}
+}
 
 $w-> show;
 $w-> select;
