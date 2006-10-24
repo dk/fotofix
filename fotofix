@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.8 2006/10/24 15:00:42 dk Exp $
+# $Id: fotofix,v 1.9 2006/10/24 15:19:42 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -79,10 +79,32 @@ DD
 		height => 32,
 		type   => im::BW,
 		data   => substr($_,0,128),
-		mask   => substr($_,128,128)
-	)
+		mask   => substr($_,128,128),
+	);
+	create_pointer( $icons{hand});
 }
 
+sub create_pointer
+{
+	my $i = shift;
+	my @p = (
+		$::application-> get_system_value( sv::XPointer),
+		$::application-> get_system_value( sv::YPointer)
+	);
+	return if $p[0] <= $i-> width or $p[1] <= $i-> height; # let Prima deal with funky sizes
+
+	# here, we just enlarge the icon without stretching
+	$i-> set(
+		hScaling => 0,
+		vScaling => 0,
+	);
+	my ( $x, $a) = $i-> split;
+	my $aa = $a-> dup;
+	$_-> size( @p) for $x, $aa;
+	$aa-> data( ~ $aa-> data);
+	$aa-> put_image( 0, 0, $a);
+	$i-> combine( $x, $aa);
+}
 
 sub image_set
 {
