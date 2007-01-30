@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.9 2006/10/24 15:19:42 dk Exp $
+# $Id: fotofix,v 1.10 2007/01/30 08:44:10 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -644,7 +644,7 @@ sub delete_image
 
 	my ( $basedir, $index, @files) = get_dir_list();
 	
-	unlink $filename or message("Cannot delete $filename:$!");
+	unlink $filename or return message("Cannot delete $filename:$!");
 
 	# use this hacky cache to preserve index on the dir list
 	$neighbour_files_cache[0] = ( $index > 0) ? $basedir . '/' . $files[$index-1] : undef;
@@ -891,7 +891,7 @@ sub image_remove_red_eyes
 	$r-> rop( rop::NotSrcAnd);
 	$r-> put_image( 0, 0, $x);
 	# create an averaged green/blue patch
-	my $gb = average([ $r, $g ]);
+	my $gb = average([ $b, $g ]);
 	$gb-> rop( rop::AndPut);
 	$gb-> put_image( 0, 0, $x);
 
@@ -1055,7 +1055,6 @@ Prima::EventHook::install(
 update_menu_status();
 update_window_title();
 update_window_size();
-
 if ( @ARGV) {
 	if ( -f $ARGV[0]) {
 		open_new_image( $ARGV[0]);
