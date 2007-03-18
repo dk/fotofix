@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.10 2007/01/30 08:44:10 dk Exp $
+# $Id: fotofix,v 1.11 2007/03/18 11:52:18 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -11,6 +11,11 @@
 #
 # IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/IPA-1.03.tar.gz 
 #    (or http://prima.eu.org/IPA/IPA-1.03.tar.gz if CPAN refuses)
+#
+# optional dependencies:
+# Prima::Image::Magick:
+#	http://search.cpan.org/~karasik/Prima-Image-Magick-0.02
+#  
 
 
 use strict;
@@ -23,6 +28,8 @@ use IPA::Misc qw(/./);
 use IPA::Point qw(/./);
 use IPA::Geometry qw(/./);
 
+eval "use Prima::Image::Magick;";
+my $UseImageMagick = not $@;
 
 my $VERSION = 0.01;
 
@@ -31,7 +38,7 @@ my $VERSION = 0.01;
 # always disabled. Win32 on the contrary does, but might (or might not) be slower
 # than Prima native image scaling.
 my $UseBufferedZoom =
-	$::application-> get_system_info->{apc} != apc::Unix;
+	( $::application-> get_system_info->{apc} == apc::Unix) ? 0 : 1;
 
 # This is the only parameter the red eye detector cares about, and is a balance of 
 # how much green and blue should be there to counterbalance the red. For example,
@@ -106,16 +113,26 @@ sub create_pointer
 	$i-> combine( $x, $aa);
 }
 
-sub image_set
+sub image_reset_display_buffer
 {
-	$image = shift;
 	$use_prebuffered_zoom = $want_prebuffered_zoom ? 
 		can_use_prebuffered_zoom() : 
 		0;
 
 	if ( $use_prebuffered_zoom) {
-		my $g = $image-> dup;
-		$g-> size( $image-> width * $zoom + .5, $image-> height * $zoom + .5);
+		my $g;
+		if ( $ini-> {Scaling} ne '1') {
+			$g = Prima::Image::Magick::prima_to_magick( $image);
+			$g-> Resize( 
+				width  => $image-> width  * $zoom  + .5, 
+				height => $image-> height * $zoom + .5,
+				filter => $ini-> {Scaling},
+			);
+			$g = $g-> Prima;
+		} else {
+			$g = $image-> dup;
+			$g-> size( $image-> width * $zoom + .5, $image-> height * $zoom + .5);
+		}
 		$iv-> zoom( 1.0);
 		$iv-> image( $g);
 	} else {
@@ -123,6 +140,13 @@ sub image_set
 		$iv-> zoom( $zoom);
 	}
 	$iv-> palette( $image-> palette);
+}
+
+
+sub image_set
+{
+	$image = shift;
+	image_reset_display_buffer();
 }
 
 sub image_replace
@@ -140,16 +164,18 @@ sub image_replace
 
 sub can_use_prebuffered_zoom
 {
-	return 0 unless $UseBufferedZoom;
+	return 0 if $ini-> {Scaling} eq '0';
+	
+	return 0 if $zoom == 1.0; # duh
+
+	return 1 if $ini-> {Scaling} ne '1';
 
 	my @as = $::application-> size;
 	return 0 if 
 		$zoom * $image-> width  > $as[0] or
 		$zoom * $image-> height > $as[1];
 
-	return 0 if $zoom == 1.0; # duh
-
-	return 0 if int($zoom) == $zoom; # this seems good enough for win32 GDI
+	return 0 if int($zoom) == $zoom; # this seems to be good enough for win32 GDI
 
 	1;
 }
@@ -159,21 +185,7 @@ sub zoom_set
 	($zoom, $want_prebuffered_zoom) = @_;
 	$zoom = 0.02 if $zoom < 0.02;
 	$zoom = 100  if $zoom > 100;
-
-	$use_prebuffered_zoom = $want_prebuffered_zoom ? 
-		can_use_prebuffered_zoom() : 
-		0;
-
-	if ( $use_prebuffered_zoom) {
-		my $g = $image-> dup;
-		$g-> size( $image-> width * $zoom + .5, $image-> height * $zoom +.5);
-		$iv-> zoom( 1.0);
-		$iv-> image( $g);
-		$iv-> palette( $g-> palette);
-	} else {
-		$iv-> image( $image);
-		$iv-> zoom( $zoom);
-	}
+	image_reset_display_buffer();
 	update_window_title();
 }
 
@@ -419,6 +431,19 @@ sub fitting_set
 	}
 
 	update_window_size();
+}
+
+sub scaling_set
+{
+	my ( $self, $type) = @_;
+
+	my $scaling = $type;
+	$scaling =~ s/^Scaling//;
+
+	$menu-> uncheck( 'Scaling' . $ini-> {Scaling});
+	$menu-> check( $type, $ini-> {Scaling} = $scaling);
+
+	image_reset_display_buffer() if $image;
 }
 
 # In X11 we can only guarantee fullscreen by creating a non-WM-manageable widget.
@@ -725,11 +750,14 @@ sub iv_mousemove
 
 	if ( not $self-> {drag}) {
 		if ( $mod & km::Shift) {
-			my $p = $image-> pixel( convert_screen_to_point($x, $y));
+			my @p = map { int ( $_ + .5 ) } convert_screen_to_point($x, $y);
+			my $p = $image-> pixel( @p);
+			
 			$current_pixel = ( $p == cl::Invalid) ? 
 				undef : 
 				sprintf(
-					$image_format_category{$image->type & im::Category},
+					"$p[0]:" . ($image-> height - $p[1]) . ' ' .
+						$image_format_category{$image->type & im::Category},
 					$image-> pixel( convert_screen_to_point($x, $y))
 				);
 			update_window_title();
@@ -991,6 +1019,24 @@ $w = Prima::Window-> create( menuItems => [
 		'AutoPosition' => 'Change window ~position when resizing' => sub {
 			$ini->{$_[1]} = $menu-> toggle( $_[1]);
 		} ],
+		[ '~Scaling' => [
+			$UseBufferedZoom ? (
+			['Scaling0'         => '~System (unbuffered)'  => \&scaling_set ],
+			['Scaling1'         => '~Nearest neighborhood' => \&scaling_set ],
+			) : (
+			['Scaling0'         => '~Nearest neighborhood' => \&scaling_set ],
+			),
+			$UseImageMagick ? (
+			['ScalingQuadratic' => 'Bi~linear'         => \&scaling_set ],
+			['ScalingCubic'     => 'Bi~cubic'          => \&scaling_set ],
+			map {
+			[ "Scaling$_"       => $_                  => \&scaling_set ]
+			} qw( Triangle Hermite Hanning Hamming Blackman Gaussian 
+			Catrom Mitchell Lanczos Bessel Sinc)
+			) : (
+			['Install Prima::Image::Magick for more', sub{}]
+			)
+		]],
 		[],
 		['25%' =>   sub{zoom_set 0.25}],
 		['~50%' =>  sub{zoom_set 0.5 }],
@@ -1051,6 +1097,10 @@ Prima::EventHook::install(
 	sub { fullscreen(0) },
 	event  => 'Execute',
 ) if $fullscreen_x11;
+
+$ini-> {Scaling} = $UseBufferedZoom 
+	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
+scaling_set( $w, 'Scaling' . $ini-> {Scaling});
 
 update_menu_status();
 update_window_title();
