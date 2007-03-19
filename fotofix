@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.12 2007/03/19 13:10:18 dk Exp $
+# $Id: fotofix,v 1.13 2007/03/19 13:17:25 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -149,7 +149,7 @@ sub image_replace
 	$region = undef;
 
 	$image = $i;
-	image_reset_display_buffer() unless $ini->{WindowFit} or $ini->{AutoBestFit}; 
+	image_reset_display_buffer();
 	
 	$modified = 1;
 	update_window_title();
@@ -579,7 +579,7 @@ sub open_image
 
 		$zoom = 1.0;
 		$image = $i;
-		image_reset_display_buffer() unless $ini->{WindowFit} or $ini->{AutoBestFit}; 
+		image_reset_display_buffer();
 
 		update_window_size();
 		update_window_title();
@@ -603,7 +603,7 @@ sub open_new_image
 
 		$zoom = 1.0;
 		$image = $i;
-		image_reset_display_buffer() unless $ini->{WindowFit} or $ini->{AutoBestFit}; 
+		image_reset_display_buffer();
 
 		update_window_size();
 		update_window_title();
