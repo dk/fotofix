@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.13 2007/03/19 13:17:25 dk Exp $
+# $Id: fotofix,v 1.14 2007/03/19 15:05:00 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -179,6 +179,7 @@ sub zoom_set
 {
 	my $old_zoom = $zoom;
 	($zoom, $want_prebuffered_zoom) = @_;
+	$want_prebuffered_zoom = 1 unless defined $want_prebuffered_zoom;
 	$zoom = 0.02 if $zoom < 0.02;
 	$zoom = 100  if $zoom > 100;
 	return if $zoom == $old_zoom;
