@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.11 2007/03/18 11:52:18 dk Exp $
+# $Id: fotofix,v 1.12 2007/03/19 13:10:18 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -58,6 +58,7 @@ my (
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
 	$current_pixel,
+	@max_window_size,
 );
 my $zoom = 1.0;
 my $fullscreen_x11 = $::application-> get_system_info->{apc} == apc::Unix;
@@ -124,14 +125,14 @@ sub image_reset_display_buffer
 		if ( $ini-> {Scaling} ne '1') {
 			$g = Prima::Image::Magick::prima_to_magick( $image);
 			$g-> Resize( 
-				width  => $image-> width  * $zoom  + .5, 
-				height => $image-> height * $zoom + .5,
+				width  => int($image-> width  * $zoom),
+				height => int($image-> height * $zoom),
 				filter => $ini-> {Scaling},
 			);
 			$g = $g-> Prima;
 		} else {
 			$g = $image-> dup;
-			$g-> size( $image-> width * $zoom + .5, $image-> height * $zoom + .5);
+			$g-> size( int($image-> width * $zoom), int($image-> height * $zoom));
 		}
 		$iv-> zoom( 1.0);
 		$iv-> image( $g);
@@ -142,19 +143,13 @@ sub image_reset_display_buffer
 	$iv-> palette( $image-> palette);
 }
 
-
-sub image_set
-{
-	$image = shift;
-	image_reset_display_buffer();
-}
-
 sub image_replace
 {
 	my $i = shift;
 	$region = undef;
 
-	image_set( $i);
+	$image = $i;
+	image_reset_display_buffer() unless $ini->{WindowFit} or $ini->{AutoBestFit}; 
 	
 	$modified = 1;
 	update_window_title();
@@ -182,9 +177,12 @@ sub can_use_prebuffered_zoom
 
 sub zoom_set
 {
+	my $old_zoom = $zoom;
 	($zoom, $want_prebuffered_zoom) = @_;
 	$zoom = 0.02 if $zoom < 0.02;
 	$zoom = 100  if $zoom > 100;
+	return if $zoom == $old_zoom;
+
 	image_reset_display_buffer();
 	update_window_title();
 }
@@ -215,11 +213,15 @@ sub zoom_from_window_size
 	my $x = $as[0] / $is[0];
 	my $y = $as[1] / $is[1];
 	my $zoom = ($x < $y) ? $x : $y;
-		
+	
+	$zoom = zoom_round( $zoom);
 	# Zoom roundoffs may create a slighlty larger zoom which might result 
 	# in (undesirable) scrollbars. We fight this by reducing zoom factor slightly.
-	$zoom = zoom_round( $zoom);
-	$zoom -= 0.01 if grep { $xs[$_] < int($is[$_] * $zoom + .5)} (0,1);
+	while ( grep { $xs[$_] < int($is[$_] * $zoom + .5)} (0,1)) {
+		my $z = zoom_round( $zoom - 0.01);
+		last if $z >= $zoom;
+		$zoom = $z;
+	}
 
 	return $zoom;
 }
@@ -303,14 +305,20 @@ sub draw_marquee
 	$o-> end_paint;
 }
 
-
+# Try to get maximal window extensions. In case WM resizes us back, 
+# record this, and adjust accordingly
 sub get_client_size
 {
+	return @max_window_size if 2 == grep { defined } @max_window_size;
+
 	my @as = $::application-> size;
 	$as[0] -= $::application-> get_system_value(sv::XbsSizeable) * 2;
 	$as[1] -= $::application-> get_system_value(sv::YbsSizeable) * 2
 		+ $::application-> get_system_value(sv::YMenu) 
 		+ $::application-> get_system_value(sv::YTitleBar);
+	for (0,1) {
+		$as[$_] = $max_window_size[$_] if defined $max_window_size[$_];
+	}
 	@as;
 }
 
@@ -359,17 +367,59 @@ sub update_menu_status
 	$menu-> enabled( $_, $x) for qw(save delete);
 }
 
+sub try_max_window_size
+{
+	return if 2 == grep { defined } @max_window_size;
+
+	my @try_max_size      = ( shift, shift );
+	my @adjusted_for_zoom = ( shift, shift );
+
+	my $t = $w-> bring('TryMaxWindowSizeTimer'); # exists already? timing pending?
+
+	$t = $w-> insert( Timer => 
+		name    => 'TryMaxWindowSizeTimer',
+		timeout => 1,
+		onTick => sub {
+			my @adjusted_for_zoom = @{$_[0]-> {AdjustedForZoom}};
+			my @try_max_size      = @{$_[0]-> {TryMaxSize}};
+
+			$_[0]-> destroy;
+			my @actual_size = $iv-> size;
+
+			for ( 0, 1) {
+				next if defined $max_window_size[$_];
+
+				if ( $adjusted_for_zoom[$_] > $actual_size[$_]) {
+					# window manager reduced the size
+					$max_window_size[$_] = $actual_size[$_];
+				} elsif ( abs( $try_max_size[$_] - $adjusted_for_zoom[$_]) < 3) {
+					# add lax for a couple of pixels for zoom roundoffs, 
+					# and record max size as actually reached max size, just
+					# to stop further tries
+					$max_window_size[$_] = $actual_size[$_];
+				}
+		}
+	} ) unless $t;
+	
+	$t-> {TryMaxSize}      = \@try_max_size;
+	$t-> {AdjustedForZoom} = \@adjusted_for_zoom;
+	$t-> start;
+}
+
 sub update_window_size
 {
 	return unless $image;
 
 	if ( $ini->{WindowFit} and not $fullscreen) {
-		my $z = zoom_from_window_size( get_client_size());
+		my @client = get_client_size();
+		my $z = zoom_from_window_size( @client);
+		my @ivsize = map { int($z * $_ + .5)} $image-> size;
 		$w-> set(
-			size   => [ map { $z * $_ + .5 } $image-> size ],
+			size   => \@ivsize,
 			$ini->{AutoPosition} ? 
 				( top => $w-> top ) : ()
 		);
+		try_max_window_size( @client, @ivsize );
 		
 		my @fs = $w-> frameSize;
 		$w-> frameOrigin(0,
@@ -528,7 +578,8 @@ sub open_image
 		$ini-> {Path} = $dlg-> directory;
 
 		$zoom = 1.0;
-		image_set( $i);
+		$image = $i;
+		image_reset_display_buffer() unless $ini->{WindowFit} or $ini->{AutoBestFit}; 
 
 		update_window_size();
 		update_window_title();
@@ -551,7 +602,8 @@ sub open_new_image
 		$filecodec = $i-> {extras}->{codecID};
 
 		$zoom = 1.0;
-		image_set( $i);
+		$image = $i;
+		image_reset_display_buffer() unless $ini->{WindowFit} or $ini->{AutoBestFit}; 
 
 		update_window_size();
 		update_window_title();
@@ -805,6 +857,24 @@ sub iv_paint
 		$canvas-> rop( rop::XorPut);
 		$canvas-> rectangle( convert_point_to_screen( @$region));
 	}
+}
+
+sub iv_size
+{
+	my ( $self, $ox, $oy, $x, $y) = @_;
+	return unless $iv;
+	return unless $ini->{WindowFit} or $ini->{AutoBestFit};
+
+	# compress resize events
+	return if $self-> bring('ResizeTimer');
+	$self-> insert( Timer =>
+		name    => 'ResizeTimer',
+		timeout => 1,
+		onTick  => sub {
+			shift-> destroy;
+			zoom_best_fit;
+		}
+	)-> start;
 }
 
 sub iv_mousewheel
@@ -1087,6 +1157,7 @@ $iv = $w-> insert( ImageViewer =>
 	onMouseUp   => \&iv_mouseup,
 	onMouseMove => \&iv_mousemove,
 	onPaint     => \&iv_paint,
+	onSize      => \&iv_size,
 
 	( $fullscreen_x11 ? (
 	onKeyDown   => \&iv_keydown
