@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.14 2007/03/19 15:05:00 dk Exp $
+# $Id: fotofix,v 1.15 2007/03/28 17:53:25 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -231,7 +231,7 @@ sub zoom_scale { zoom_set $zoom * shift }
 
 sub zoom_best_fit
 {
-	zoom_set( zoom_from_window_size( $iv-> size), 1);
+	zoom_set( zoom_from_window_size( $iv-> size), 1) if $image;
 }
 
 sub convert_screen_to_point
