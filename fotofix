@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.16 2007/04/09 09:23:27 dk Exp $
+# $Id: fotofix,v 1.17 2007/04/28 13:13:09 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -828,13 +828,16 @@ sub iv_mousemove
 
 	if ( not $self-> {drag}) {
 		if ( $mod & km::Shift) {
-			my @p = map { int ( $_ + .5 ) } convert_screen_to_point($x, $y);
-			my $p = $image-> pixel( @p);
-			
+			my @p = convert_screen_to_point($x, $y);
+			my $p = (grep { $_ < 0 } @p) ?
+				cl::Invalid : 
+				$image-> pixel( @p);
+
+			@p = map { int } @p;
 			$current_pixel = ( $p == cl::Invalid) ? 
 				undef : 
 				sprintf(
-					"$p[0]:" . ($image-> height - $p[1]) . ' ' .
+					"$p[0]:" . ($image-> height - $p[1] - 1) . ' ' .
 						$image_format_category{$image->type & im::Category},
 					$image-> pixel( convert_screen_to_point($x, $y))
 				);
