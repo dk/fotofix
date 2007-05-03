@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.17 2007/04/28 13:13:09 dk Exp $
+# $Id: fotofix,v 1.18 2007/05/03 17:27:15 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -49,9 +49,12 @@ my $UseBufferedZoom =
 # practically useful.
 my $RedEyesHueDiff = 1.0;
 
+my @MagnifyingGlassSize   = (302,202);
+
 
 my ( 
 	$w, $menu, $iv, $image, 
+	$magnify, $magnify_zoom,
 	$ini,
 	$want_prebuffered_zoom, $use_prebuffered_zoom,
 	@neighbour_files_cache,
@@ -148,13 +151,20 @@ sub image_replace
 	my $i = shift;
 	$region = undef;
 
+	magnify(0);
+
+	my $eq =
+		$image &&
+		$i &&
+		(join('x', $i-> size) eq join('x', $image-> size)); 
+
 	$image = $i;
 	image_reset_display_buffer();
 	
 	$modified = 1;
 	update_window_title();
 	update_menu_status();
-	update_window_size();
+	update_window_size() unless $eq;
 }
 
 sub can_use_prebuffered_zoom
@@ -182,6 +192,7 @@ sub zoom_set
 	$zoom = 100  if $zoom > 100;
 	return if $zoom == $old_zoom;
 
+	$magnify-> repaint if $magnify;
 	image_reset_display_buffer();
 	update_window_title();
 }
@@ -797,10 +808,13 @@ sub iv_mousedown
 	} elsif ( $btn == mb::Left) {
 		@{$self}{qw(x y marquee_x marquee_y)} = map { int } convert_screen_to_point( $x, $y, $x, $y);
 		$self-> capture(1, $self);
+	} elsif ( $btn == mb::Middle) {
+		return magnify( $magnify ? 0 : 1);
 	} else {
 		return;
 	}
-	
+
+	magnify(0);
 	$self-> {drag} = $btn;
 }
 
@@ -808,6 +822,8 @@ sub iv_mouseup
 {
 	my ( $self, $btn, $mod, $x, $y) = @_;
 	return unless $self-> {drag} && $btn == $self->{drag};
+	return if $btn == mb::Middle;
+
 	$self-> {drag} = 0;
 	$self-> capture(0);
 	update_window_title();
@@ -841,12 +857,22 @@ sub iv_mousemove
 						$image_format_category{$image->type & im::Category},
 					$image-> pixel( convert_screen_to_point($x, $y))
 				);
+			$iv-> pointerType( cr::Default) 
+				unless $iv-> pointerType == cr::Default;
 			update_window_title();
 		} elsif ( defined $current_pixel) {
 			undef $current_pixel;
 			update_window_title();
-		}
+		} 
 		
+		if ( $magnify) {
+			$magnify-> origin( 
+				$x - $MagnifyingGlassSize[0]/2,
+				$y - $MagnifyingGlassSize[1]/2,
+			);
+			$magnify-> repaint;
+			$self-> update_view;
+		}
 	} elsif ( $self-> {drag} == mb::Right) {
 		my ($dx,$dy) = ($x - $self-> {x}, $y - $self-> {y});
 		$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
@@ -855,6 +881,31 @@ sub iv_mousemove
 		@{$self}{qw(marquee_x marquee_y)} = map { int } convert_screen_to_point($x, $y);
 		draw_marquee();	
 		update_window_title();
+	}
+}
+
+sub iv_mousewheel
+{
+	my ( $self, $mod, $x, $y, $z) = @_;
+
+	if ( $magnify) {
+		$z = int( $z / 120);
+		if ( $z > 0 ) {
+			$magnify_zoom *= 0.9;
+			$magnify_zoom = 1 if $magnify_zoom < 1;
+		} else {
+			$magnify_zoom *= 1.1;
+			$magnify_zoom = 100 if $magnify_zoom > 100;
+		}
+		$magnify-> repaint;
+	} else {
+		$z = 5 * int( $z / 120);
+		my $xv = ($mod & km::Shift) ? 'vScroll' : 'hScroll';
+		return unless $self-> $xv();
+		$xv = $self-> bring( ucfirst $xv);
+		$z *= ($mod & km::Ctrl) ? $xv-> step : $xv-> pageStep;
+		my $meth = ( $mod & km::Shift) ? 'deltaX' : 'deltaY';
+		$self-> $meth( $self-> $meth - $z);
 	}
 }
 
@@ -904,19 +955,6 @@ sub iv_size
 			zoom_best_fit;
 		}
 	)-> start;
-}
-
-sub iv_mousewheel
-{
-	my ( $self, $mod, $x, $y, $z) = @_;
-	$z = int( $z / 120);
-	my $xv = ($mod & km::Shift) ? $self-> VScroll : $self-> HScroll;
-	$z *= ($mod & km::Ctrl) ? $xv-> pageStep : $xv-> step;
-	if ( $mod & km::Shift) {
-		$self-> deltaX( $self-> deltaX - $z);
-	} else {
-		$self-> deltaY( $self-> deltaY - $z);
-	}
 }
 
 sub conversion_set
@@ -1035,6 +1073,60 @@ sub image_remove_red_eyes
 	image_replace($image);
 }
 
+sub magnify
+{
+	my $show = $_[0];
+
+	if ( $show) {
+		return if $magnify;
+		my $x = $w-> insert( Widget => 
+			size		=> \@MagnifyingGlassSize,
+			syncPaint	=> 1,
+			buffered	=> 1,
+			onMouseWheel	=> \&iv_mousewheel,
+			onMouseMove	=> sub { magnify(0) }, # if capture was superseded by WM
+			onPaint		=> sub {
+				my ( $self, $canvas) = @_;
+				$self-> clear;
+				if ( $image) {
+					my @m = map { $_ - 2 } @MagnifyingGlassSize;
+					my $z = $zoom * $magnify_zoom;
+					my @c = map { $_ / $z } @m;
+					my @i = convert_screen_to_point( $iv-> pointerPos);
+					$i[$_] -= $c[$_] / 2 for 0,1;
+					my @d = (1,1);
+					if ( $zoom > 1) {
+						for ( 0,1) {
+							$d[$_] -= ($i[$_] - int($i[$_])) * $z;
+							$c[$_]++;
+							$m[$_] += $z;
+						}
+					}
+					$self-> put_image_indirect(
+						$image,
+						@d, @i,
+						@m, @c,
+						rop::CopyPut
+					);
+				}
+   				$self-> rectangle( 0, 0, map { $_ - 1 } @MagnifyingGlassSize);
+			},
+		);
+		$magnify_zoom = 2;
+		$x-> focus;
+		$iv-> capture(1);
+		$iv-> pointer( cr::User);
+		$magnify = $x;
+	} else {
+		return unless $magnify;
+		$iv-> capture(0);
+		$iv-> pointer( cr::Default);
+		$magnify-> destroy;
+		$iv-> select;
+		undef $magnify;
+	}
+}
+
 $ini = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
@@ -1062,7 +1154,13 @@ $w = Prima::Window-> create( menuItems => [
 		[],
 		['delete' => '~Delete file'    => 'Del'          => kb::Delete    => \&delete_image ],
 		[],
-		['E~xit'          => 'Esc'  => kb::Escape => sub {$::application-> close }],
+		['E~xit'          => 'Esc'  => kb::Escape => sub {
+			if ( $magnify) {
+				magnify(0);
+			} else {
+				$::application-> close;
+			}
+		}],
 	]],
 	['~Edit' => [
 		['copy' => '~Copy' => 'Ctrl+Ins' => km::Ctrl|kb::Insert , sub {
@@ -1177,22 +1275,23 @@ ABOUT
 $menu = $w-> menu;
 
 $iv = $w-> insert( ImageViewer =>
-	size	    => [ $w-> size],
-	origin      => [ 0, 0],
-	growMode    => gm::Client,
-	quality     => 1,
-	selectable  => 1,
-	name        => 'IV',
-	valignment  => ta::Middle,
-	alignment   => ta::Center,
-	onMouseDown => \&iv_mousedown,
-	onMouseUp   => \&iv_mouseup,
-	onMouseMove => \&iv_mousemove,
-	onPaint     => \&iv_paint,
-	onSize      => \&iv_size,
+	size	     => [ $w-> size],
+	origin       => [ 0, 0],
+	growMode     => gm::Client,
+	quality      => 1,
+	selectable   => 1,
+	name         => 'IV',
+	valignment   => ta::Middle,
+	alignment    => ta::Center,
+	onMouseDown  => \&iv_mousedown,
+	onMouseUp    => \&iv_mouseup,
+	onMouseMove  => \&iv_mousemove,
+	onMouseWheel => \&iv_mousewheel,
+	onPaint      => \&iv_paint,
+	onSize       => \&iv_size,
 
 	( $fullscreen_x11 ? (
-	onKeyDown   => \&iv_keydown
+	onKeyDown    => \&iv_keydown
 	) : ()),
 );
 
@@ -1267,6 +1366,11 @@ free to hack it.
 =head2 Show pixel value under cursor
 
 Press shift and move the mouse around the picture
+
+=head2 Local zoom window
+
+Press middle button. To change zoom, rotate the mouse wheel.  The mouse pointer
+gets hidden, but press shift and move the pointer to show it back.
 
 =head1 BUGS & FEATURES
 
