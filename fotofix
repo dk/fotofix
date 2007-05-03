@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.18 2007/05/03 17:27:15 dk Exp $
+# $Id: fotofix,v 1.19 2007/05/03 17:29:27 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1367,7 +1367,7 @@ free to hack it.
 
 Press shift and move the mouse around the picture
 
-=head2 Local zoom window
+=head2 Magnifying glass
 
 Press middle button. To change zoom, rotate the mouse wheel.  The mouse pointer
 gets hidden, but press shift and move the pointer to show it back.
