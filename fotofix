@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.20 2007/05/09 23:17:08 dk Exp $
+# $Id: fotofix,v 1.21 2007/05/09 23:26:15 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -857,8 +857,8 @@ sub iv_mousemove
 						$image_format_category{$image->type & im::Category},
 					$image-> pixel( convert_screen_to_point($x, $y))
 				);
-			$iv-> pointerType( cr::Default) 
-				unless $iv-> pointerType == cr::Default;
+			$::application-> pointerVisible(1) 
+				if $magnify and not $::application-> pointerVisible;
 			update_window_title();
 		} elsif ( defined $current_pixel) {
 			undef $current_pixel;
@@ -1115,12 +1115,13 @@ sub magnify
 		$magnify_zoom = 2;
 		$x-> focus;
 		$iv-> capture(1);
-		$iv-> pointer( cr::User);
+		$::application-> pointerVisible(0);
 		$magnify = $x;
 	} else {
 		return unless $magnify;
 		$iv-> capture(0);
-		$iv-> pointer( cr::Default);
+		$::application-> pointerVisible(1)
+			unless $::application-> pointerVisible;
 		$magnify-> destroy;
 		$iv-> select;
 		undef $magnify;
