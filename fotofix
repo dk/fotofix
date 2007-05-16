@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.22 2007/05/16 11:46:31 dk Exp $
+# $Id: fotofix,v 1.23 2007/05/16 17:10:20 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -599,9 +599,8 @@ sub fullscreen
 
 sub open_image
 {
-	if ( $modified) {
-		return unless can_close_image();
-	}
+	return if $modified and not can_close_image();
+
 	my $dlg  = Prima::ImageOpenDialog-> create(
 		directory => $ini-> {Path},
 	);
@@ -1130,6 +1129,8 @@ sub magnify
 
 sub grab_screen
 {
+	return if $modified and not can_close_image;
+
 	my $delay = 2;
 	message_box( 'Grab screen', join(' ', (split "\n", <<MSG)), mb::Ok);
 Screen will be grabbed in $delay seconds after main window disappears. 
@@ -1140,6 +1141,7 @@ MSG
 
 	for ( 1..10) { 
 		sleep($delay);
+		$::application-> yield;
 		last unless $::application-> get_shift_state & km::Ctrl;
 	}
 
