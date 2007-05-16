@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.23 2007/05/16 17:10:20 dk Exp $
+# $Id: fotofix,v 1.24 2007/05/16 21:22:10 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -7,7 +7,7 @@
 #
 # dependencies:
 # Prima: http://prima.eu.org/anon_cvs.html ( but will also work with
-#  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.20.tar.gz )
+#  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.21.tar.gz )
 #
 # IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/IPA-1.03.tar.gz 
 #    (or http://prima.eu.org/IPA/IPA-1.03.tar.gz if CPAN refuses)
@@ -396,6 +396,8 @@ sub update_menu_status
 		saveas next prev first last reopen
 		convert copy copybits view rotate effects
 	);
+
+	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
 
 	$x &&= $region;
 	$menu-> enabled( $_, $x) for qw(crop redeyes);
@@ -1155,6 +1157,120 @@ MSG
 	image_replace( $x);
 }
 
+sub edit_palette
+{
+	return message("Cannot edit palette on this image")
+		unless $image and (($image-> type & im::BPP) <= 8);
+
+	my $was_grayscale; # grayscale palette is locked
+	if ( $image-> type & im::GrayScale) {
+		$image-> type( $image-> type & ~im::GrayScale);
+		$was_grayscale = 1;
+	}
+
+	require Prima::Grids;
+	require Prima::ColorDialog;
+
+	my $fh = $w-> font-> height;
+	my @ext = ( 16, 16);
+	my ( $cd, $curr_index, @colormap, $old_image, $touch );
+	my @current = @colormap = $image-> colormap;
+
+	my $d = Prima::Dialog-> new( 
+		text => 'Edit palette',
+		size => [25 * $ext[0] + 4, 25 * $ext[1] + $fh * 4],
+	);
+	
+	
+	my $grid = $d-> insert( GridViewer =>
+		origin			=> [0,0],
+		size			=> [$d-> size],
+		constantCellWidth	=> 24,
+		constantCellHeight	=> 24,
+		multiSelect 		=> 0,
+		cells			=> [([(undef) x $ext[0]]) x $ext[1]],
+		onDrawCell => sub {
+			my ( $self, $canvas, 
+				$col, $row, $indent, 
+				$sx1, $sy1, $sx2, $sy2, 
+				$cx1, $cy1, $cx2, $cy2, 
+				$selected, $focused
+			) = @_;
+			my $index = $row * $ext[0] + $col;
+			$canvas-> backColor( 
+				($index > $#colormap) ? 
+				cl::Back :
+				$current[$index]
+			);
+			$canvas-> clear($sx1, $sy1, $sx2, $sy2);
+			$canvas-> rect_focus( $sx1, $sy1, $sx2, $sy2) if $focused;
+		},
+		onSelectCell => sub {
+			my ( $self, $col, $row) = @_;
+			my $index = $row * $ext[0] + $col;
+			my $color = sprintf("%06x", $current[$index]);
+			$d-> text("Edit palette, index #$index $color");
+		},
+		onClick => sub {
+			my ($self) = @_;
+			my ( $col, $row) = $self-> focusedCell;
+			$curr_index = $row * $ext[0] + $col;
+			$cd-> value( $current[$curr_index]);
+			if ( $cd-> execute == mb::OK) {
+				$current[$curr_index] = $cd-> value;
+				$touch = 1;
+			} else {
+				$current[ $curr_index] = $colormap[ $curr_index];
+			}
+			$self-> redraw_cell( $col, $row);
+			$image-> colormap( @current);
+			image_reset_display_buffer();
+		},
+	);
+
+	my $ok = $d-> insert( Button => 
+		text		=> '~OK',
+		origin		=> [ 15, $fh],
+		modalResult 	=> mb::OK,
+		default		=> 1,
+	);
+	
+	$d-> insert( Button => 
+		text		=> 'Cancel',
+		origin		=> [ $d-> width - $ok-> width - 15, $fh],
+		modalResult 	=> mb::Cancel,
+	);
+	
+	$cd = Prima::ColorDialog-> new(
+		onChange => sub {
+			my ( $row, $col) = ( int($curr_index / $ext[0]), $curr_index % $ext[0]);
+			$current[ $curr_index ] = $_[0]-> value;
+			$grid-> redraw_cell( $col, $row );
+			my $color = sprintf("%06x", $current[$curr_index]);
+			$d-> text("Edit palette, index #$curr_index $color");
+
+			$touch = 1;
+			$image-> colormap( @current);
+			image_reset_display_buffer();
+		},
+	);
+
+	my $r = $d-> execute;
+	
+	$d-> destroy;
+	$cd-> destroy;
+
+	if ( $r == mb::OK) {
+		image_replace( $image) if $touch;
+	} else {
+		$image-> colormap( @colormap);
+		$image-> type($image-> type | im::GrayScale)
+			if $was_grayscale;
+		image_reset_display_buffer();
+	}
+	
+}
+
 $ini = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
@@ -1194,7 +1310,7 @@ $w = Prima::Window-> create( menuItems => [
 		['copy' => '~Copy' => 'Ctrl+Ins' => km::Ctrl|kb::Insert , sub {
 			$::application-> Clipboard-> image(region_image());
 		}],
-		['copybits' => 'Copy as displayed' => sub {
+		['copybits' => 'Copy as ~displayed' => sub {
 			$::application-> Clipboard-> image(image_as_displayed());
 		}],
 		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
@@ -1205,7 +1321,7 @@ $w = Prima::Window-> create( menuItems => [
 			return unless $image and $region;
 			image_replace( region_image());
 		}],
-		['grab'  => 'Grab screen...' => \&grab_screen ],
+		['grab'  => '~Grab screen...' => \&grab_screen ],
 		[],
 		[ 'convert' => 'Con~vert to'=> [
 			['~Monochrome' => sub {image_convert(im::Mono)}],
@@ -1230,7 +1346,8 @@ $w = Prima::Window-> create( menuItems => [
 		['effects' => '~Effects' => [
 			['~Invert' => \&image_invert ],
 			['-redeyes' => '~Remove red eyes' => 'Alt+R' => '@R' => \&image_remove_red_eyes ],
-		]]
+		]],
+		['palette' => 'P~alette' => \&edit_palette ],
 	]],
 	['view' => '~View' => [
 		['~Normal ( 100%)' => 'Ctrl+Z' => '^Z' => sub{zoom_set(1.0)}],
