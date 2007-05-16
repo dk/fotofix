@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.21 2007/05/09 23:26:15 dk Exp $
+# $Id: fotofix,v 1.22 2007/05/16 11:46:31 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1128,6 +1128,31 @@ sub magnify
 	}
 }
 
+sub grab_screen
+{
+	my $delay = 2;
+	message_box( 'Grab screen', join(' ', (split "\n", <<MSG)), mb::Ok);
+Screen will be grabbed in $delay seconds after main window disappears. 
+If that's too short, keep Control key pressed, so you'll have $delay seconds more
+MSG
+
+	$w-> visible(0);
+
+	for ( 1..10) { 
+		sleep($delay);
+		last unless $::application-> get_shift_state & km::Ctrl;
+	}
+
+	my $x = $::application-> get_image( 0, 0, $::application-> size);
+	$w-> visible(1);
+	unless ( $x) {
+		message("Cannot grab image");
+		return;
+	}
+	$filename = 'screenshot' unless defined $filename;
+	image_replace( $x);
+}
+
 $ini = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
@@ -1178,6 +1203,7 @@ $w = Prima::Window-> create( menuItems => [
 			return unless $image and $region;
 			image_replace( region_image());
 		}],
+		['grab'  => 'Grab screen...' => \&grab_screen ],
 		[],
 		[ 'convert' => 'Con~vert to'=> [
 			['~Monochrome' => sub {image_convert(im::Mono)}],
