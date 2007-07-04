@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.24 2007/05/16 21:22:10 dk Exp $
+# $Id: fotofix,v 1.25 2007/07/04 20:03:30 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -499,6 +499,8 @@ sub update_window_size
 			$is[0] = $ws[0] if $is[0] < $ws[0];
 			$is[1] = $ws[1] if $is[1] < $ws[1];
 		}
+	} elsif ( $ini->{ImageFit} and $fullscreen) { 
+		zoom_set 1.0;
 	}
 }
 
