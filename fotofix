@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.27 2007/07/28 20:45:22 dk Exp $
+# $Id: fotofix,v 1.28 2007/07/28 21:58:07 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1659,10 +1659,10 @@ $w = Prima::Window-> create( menuItems => [
 		]],
 		['tagged' => '~Tagged files' => [['tagset']]],
 		[],
-		['fcopy'   => 'Copy...'    => 'F5' => 'F5'         => \&files_copy ],
-		['fmove'   => 'Move...'    => 'F6' => 'F6'         => \&files_move ],
-		['delete'  => 'Delete...'  => 'Del' => kb::Delete  => \&files_delete ],
-		['execute' => 'E~xecute command on selected...' => 'Ctrl+X' => '^X'  => \&files_execute ],
+		['fcopy'   => 'Copy...'    => 'F5'  => 'F5'         => \&files_copy ],
+		['fmove'   => 'Move...'    => 'F6'  => 'F6'         => \&files_move ],
+		['delete'  => 'Delete...'  => 'Del' => kb::Delete   => \&files_delete ],
+		['execute' => 'E~xecute on tagged...' => 'Ctrl+X' => '^X'  => \&files_execute ],
 		[],
 		['E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
@@ -1716,7 +1716,7 @@ $w = Prima::Window-> create( menuItems => [
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
 	['view' => '~View' => [
-		['~Normal ( 100%)' => 'Ctrl+Z' => '^Z' => sub{zoom_set(1.0)}],
+		['~Normal ( 100%)' => 'Z' => 'Z' => sub{zoom_set(1.0)}],
 		['F~ull screen' => 'Enter' => kb::Enter => sub {
 			fullscreen( not $fullscreen);
 		}],
@@ -1749,6 +1749,7 @@ $w = Prima::Window-> create( menuItems => [
 			['Install Prima::Image::Magick for more', sub{}]
 			)
 		]],
+		['Minimi~ze' => 'Ctrl+Z' => '^Z' => 'minimize' ],
 		[],
 		['25%' =>   sub{zoom_set 0.25}],
 		['~50%' =>  sub{zoom_set 0.5 }],
