@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.26 2007/07/28 18:33:04 dk Exp $
+# $Id: fotofix,v 1.27 2007/07/28 20:45:22 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -58,7 +58,7 @@ my (
 	$magnify, $magnify_zoom,
 	$ini,
 	$want_prebuffered_zoom, $use_prebuffered_zoom,
-	@neighbour_files_cache,
+	%neighbour_files_cache,
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
 	$current_pixel, %tags,
@@ -642,7 +642,7 @@ sub open_image
 		undef $region;
 		$filename = $dlg-> fileName;
 		$modified = 0;
-		@neighbour_files_cache = ();
+		%neighbour_files_cache = ();
 		$filecodec = $i-> {extras}->{codecID};
 		%tags = () if ( $ini-> {Path} || '') ne $dlg-> directory;
 		$ini-> {Path} = $dlg-> directory;
@@ -668,7 +668,7 @@ sub open_new_image
 		undef $region;
 		$filename = $fn;
 		$modified = 0;
-		@neighbour_files_cache = ();
+		%neighbour_files_cache = ();
 		$filecodec = $i-> {extras}->{codecID};
 
 		$zoom = 1.0;
@@ -712,6 +712,38 @@ sub get_dir_list
 	return $basedir, $found, @files;
 }
 
+sub get_next_image_index
+{
+	my ( $next, $current_files) = @_;
+
+	my $sign = $next ? 1 : -1;
+	my ( $min_dist, $found_index, $i);
+	$i = -1;
+	for my $file ( @$current_files) {
+		$i++;
+		next unless $neighbour_files_cache{ $file };
+		my $distance = $sign * $neighbour_files_cache{ $file };
+		next if $distance < 0;
+		($min_dist,$found_index) = ( $distance,$i) if
+			not defined($min_dist) or $min_dist > $distance;
+	}
+	return $found_index;
+}
+
+sub populate_next_image_cache
+{
+	my ( $current_index, $current_files) = @_;
+
+	my $i;
+	%neighbour_files_cache = ();
+
+	return unless defined $current_index;
+	
+	for ( $i = 0; $i < @$current_files; $i++) {
+		$neighbour_files_cache{ $current_files->[$i] } = $i - $current_index;
+	}
+}
+
 sub open_next_image
 {
 	my ( $self, $menu) = @_;
@@ -721,14 +753,13 @@ sub open_next_image
 	return unless defined $filename;
 
 	my ( $basedir, $index, @files) = get_dir_list();
-	$index ||= 0;
 
 	return message("No files found") unless @files;
 
 	if ( $menu eq 'prev') {
-		return open_new_image($neighbour_files_cache[0])
-			if $neighbour_files_cache[0];
-
+		$index = get_next_image_index( 0, \@files) + 1
+			unless defined $index;
+		$index = 0 unless defined $index;
 		if ( $index == 0) {
 			return if message("First image in the directory, go to the last?", mb::YesNo) != mb::Yes;
 			$index = $#files;
@@ -736,9 +767,9 @@ sub open_next_image
 			$index--;
 		}
 	} elsif ( $menu eq 'next') {
-		return open_new_image($neighbour_files_cache[1])
-			if $neighbour_files_cache[1];
-
+		$index = get_next_image_index( 1, \@files) - 1
+			unless defined $index;
+		$index = $#files unless defined $index;
 		if ( $index == $#files) {
 			return if message("Last image in the directory, go to the first?", mb::YesNo) != mb::Yes;
 			$index = 0;
@@ -784,25 +815,11 @@ sub save_image_as
 	$ok;
 }
 
-sub delete_image
-{
-	return unless $filename and
-		message("Really delete $filename?", mb::OKCancel) == mb::OK;
-
-	my ( $basedir, $index, @files) = get_dir_list();
-	
-	unlink $filename or return message("Cannot delete $filename:$!");
-
-	# use this hacky cache to preserve index on the dir list
-	$neighbour_files_cache[0] = ( $index > 0) ? $basedir . '/' . $files[$index-1] : undef;
-	$neighbour_files_cache[1] = $files[$index+1] ? $basedir . '/' . $files[$index+1] : undef;
-}
-
 sub filename2tag
 {
 	my $fn = shift;
 	return undef unless defined $fn;
-	$fn = abs_path( $fn);
+	eval { $fn = abs_path( $fn); }; # it may croak if file's not found! what a fuckup
 	if ( $^O =~ /win32/i) {
 		$fn = lc $fn ; # oh yeah
 		$fn =~ s/\\/\//g;
@@ -835,14 +852,12 @@ sub tags_clear
 sub tags_invert
 {
 	my ( $basedir, undef, @files) = get_dir_list();
+	my %t; # in case some leftovers are there
 	for ( @files) {
 		my $fn = filename2tag("$basedir/$_");
-		if ( exists $tags{ $fn }) {
-			delete $tags{ $fn };
-		} else {
-			$tags{ $fn } = 1;
-		}
+		$t{ $fn } = 1 unless exists $tags{ $fn };
 	}
+	%tags = %t;
 	update_window_title();
 	update_menu_tags();
 }
@@ -856,25 +871,21 @@ sub open_next_tagged_image
 	return unless defined $filename;
 
 	my ( $basedir, $index, @files) = get_dir_list();
-	$index ||= 0;
 
 	return message("No files found") unless @files;
 	return message("No tagged files") unless scalar keys %tags;
 
 	if ( $menu eq 'prev_t' or $menu eq 'last_t') {
-		return open_new_image($neighbour_files_cache[0]) if 
-			$menu eq 'prev_t' and 
-			$neighbour_files_cache[0] and 
-			$tags{ $neighbour_files_cache[0] };
-		$index = $#files if $menu eq 'last_t';
+		if ( $menu eq 'prev_t') {
+			$index = get_next_image_index( 0, \@files) + 1
+				unless defined $index;
+			$index = 0 unless defined $index;
+		} else {
+			$index = $#files;
+		}
 		my $i = $index;
 		while ( 1) {
-			my $f = filename2tag("$basedir/$files[$i]");
-			if ( $tags { $f }) {
-				$index = $i;
-				last;
-			}
-			if ( $index == 0) {
+			if ( $i == 0) {
 				return if message(
 					"First tagged image in the directory, go to the last?", 
 					mb::YesNo
@@ -885,21 +896,24 @@ sub open_next_tagged_image
 			}
 			return message("Cannot find any tagged file")
 				if $index == $i;
-		}
-	} elsif ( $menu eq 'next_t' or $menu eq 'first_t') {
-		return open_new_image($neighbour_files_cache[1]) if 
-			$menu eq 'next_t' and 
-			$neighbour_files_cache[1] and 
-			$tags{ $neighbour_files_cache[1] };
-		$index = 0 if $menu eq 'first_t';
-		my $i = $index;
-		while ( 1) {
+
 			my $f = filename2tag("$basedir/$files[$i]");
 			if ( $tags { $f }) {
 				$index = $i;
 				last;
 			}
-			if ( $index == $#files) {
+		}
+	} elsif ( $menu eq 'next_t' or $menu eq 'first_t') {
+		if ( $menu eq 'next_t') {
+			$index = get_next_image_index( 1, \@files) - 1
+				unless defined $index;
+			$index = $#files unless defined $index;
+		} else {
+			$index = 0;
+		}
+		my $i = $index;
+		while ( 1) {
+			if ( $i == $#files) {
 				return if message(
 					"Last tagged image in the directory, go to the first?", 
 					mb::YesNo
@@ -910,6 +924,12 @@ sub open_next_tagged_image
 			}
 			return message("Cannot find any tagged file")
 				if $index == $i;
+
+			my $f = filename2tag("$basedir/$files[$i]");
+			if ( $tags { $f }) {
+				$index = $i;
+				last;
+			}
 		}
 	}
 
@@ -968,6 +988,11 @@ sub files_copy_move
 	$d-> destroy;
 	return message("No such directory '$dir'") unless -d $dir;
 
+	if ( $op eq 'move') {
+		my ( $basedir, $index, @files) = get_dir_list();
+		populate_next_image_cache( $index, \@files);
+	}
+
 	my $YesToAll = 0;
 	my $what = (( $op eq 'copy') ? 'Copying' : 'Moving');
 	files_multirun( 
@@ -977,7 +1002,8 @@ sub files_copy_move
 			$src =~ /([^\\\/]*)$/;
 			my $dst = "$dir/$1";
 			if ( -f $dst and not $YesToAll) {
-				my $r = message(
+				my $r = message_box(
+					$what,
 					"$dst already exists. Overwrite?",
 					mb::YesNo|mb::Abort|mb::Ignore|mb::Warning, {
 					buttons => {
@@ -993,8 +1019,9 @@ sub files_copy_move
 			my $ok;
 			RETRY: $ok = File::Copy-> can($op)-> ( $src, $dst);
 			unless ( $ok) {
-				my $r = message(
-					"Error " . lcfirst($what) . " $src to $dir: $!",
+				my $r = message_box(
+					$what,
+					"Error " . lcfirst($what) . " $src to $dir: $^E",
 					mb::Abort|mb::Retry|mb::Cancel
 				);
 				return 0 if $r == mb::Abort;
@@ -1017,15 +1044,21 @@ sub files_delete
 	my @f = files_get_selection();
 	return unless @f;
 
-	return unless mb::Ok == message(
+	return unless mb::Ok == message_box(
+		'Deleting',
 		"Really delete " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' ?',
 		mb::OkCancel|mb::Warning
 	);
+	
+	my ( $basedir, $index, @files) = get_dir_list();
+	populate_next_image_cache( $index, \@files);
+
 	files_multirun( 'Deleting', sub { 
 		my $ok;
 		RETRY: $ok = unlink $_[0];
 		unless ( $ok) {
-			my $r = message(
+			my $r = message_box(
+				'Deleting',
 				"Error deleting $_[0]:$!",
 				mb::Abort|mb::Retry|mb::Cancel
 			);
@@ -1053,6 +1086,10 @@ sub files_execute
 		helpTopic => "$0/Execute",
 	});
 	return unless defined $cmd and length $cmd;
+	
+	# we don't know if the command will be destructive or not, so we'll cache just in case
+	my ( $basedir, $index, @files) = get_dir_list();
+	populate_next_image_cache( $index, \@files);
 
 	if ( $cmd =~ /\$_/) {
 		for my $f ( @f) {
@@ -1062,7 +1099,7 @@ sub files_execute
 			$::application-> name( $c );
 			update_window_title();
 			next if 0 == system $c;
-			message("'$c' failed: error code $?");
+			message_box( 'Execute', "'$c' failed: error code $?");
 			last;
 		}
 	} else {
@@ -1072,7 +1109,7 @@ sub files_execute
 		$w-> text( $cmd );
 		$::application-> name( $cmd );
 		(0 == system($cmd)) or
-			message("'$cmd' failed: error code $?");
+			message_box('Execute', "'$cmd' failed: error code $?");
 	}
 	update_window_title();
 }
@@ -1626,7 +1663,6 @@ $w = Prima::Window-> create( menuItems => [
 		['fmove'   => 'Move...'    => 'F6' => 'F6'         => \&files_move ],
 		['delete'  => 'Delete...'  => 'Del' => kb::Delete  => \&files_delete ],
 		['execute' => 'E~xecute command on selected...' => 'Ctrl+X' => '^X'  => \&files_execute ],
-#		['delete' => '~Delete file'    => 'Del'          => kb::Delete    => \&delete_image ],
 		[],
 		['E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
