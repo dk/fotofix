@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.25 2007/07/04 20:03:30 dk Exp $
+# $Id: fotofix,v 1.26 2007/07/28 18:33:04 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -27,6 +27,7 @@ use Prima qw(
 use IPA::Misc qw(/./);
 use IPA::Point qw(/./);
 use IPA::Geometry qw(/./);
+use Cwd qw(getcwd abs_path);
 
 eval "use Prima::Image::Magick;";
 my $UseImageMagick = not $@;
@@ -60,7 +61,7 @@ my (
 	@neighbour_files_cache,
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
-	$current_pixel,
+	$current_pixel, %tags,
 	@max_window_size,
 );
 my $zoom = 1.0;
@@ -365,7 +366,7 @@ sub update_window_title
 	my $str;
 	if ( $img) {
 		$str = $filename;
-		$str =~ s/([^\\\/]*)$/$1/;
+		$str =~ m/([^\\\/]*)$/;
 		$str = sprintf("%s (%dx%dx%d bpp)", $1,
 			$img-> width, $img-> height, $img-> type & im::BPP);
 	} else {
@@ -385,8 +386,35 @@ sub update_window_title
 	}
 
 	my $is_modified = $modified ? '* ' : '';
-	$w-> text( "FotoFix - $is_modified$str");
+	my $tag_info    = 
+		(( scalar keys %tags ) ? 
+			('[' . 
+				(scalar keys %tags) . 
+				(tag_is_set($filename) ? ':T' : '') .
+			'] ') :
+			''
+		);
+	$w-> text( "FotoFix - $tag_info$is_modified$str");
 	$::application-> name( "FotoFix - $str");
+}
+
+sub update_menu_tags
+{
+	for ( $menu-> get_items('tagged')) {
+		$menu-> remove( $_-> [0]-> [0]);
+	}
+	$menu-> insert(
+		( scalar keys %tags) ? ( [
+			map {
+				my $f = $_; 
+				[ $f, sub { open_new_image($f) } ]
+			} sort keys %tags,
+		] ) : ([['tagset']]),
+		'tagged', 0
+	);
+
+	my $x = scalar keys %tags;
+	$menu-> enabled( $_, $x) for qw(first_t next_t prev_t last_t);
 }
 
 sub update_menu_status
@@ -395,6 +423,7 @@ sub update_menu_status
 	$menu-> enabled( $_ , $x) for qw(
 		saveas next prev first last reopen
 		convert copy copybits view rotate effects
+		tag
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
@@ -615,6 +644,7 @@ sub open_image
 		$modified = 0;
 		@neighbour_files_cache = ();
 		$filecodec = $i-> {extras}->{codecID};
+		%tags = () if ( $ini-> {Path} || '') ne $dlg-> directory;
 		$ini-> {Path} = $dlg-> directory;
 
 		$zoom = 1.0;
@@ -767,6 +797,286 @@ sub delete_image
 	$neighbour_files_cache[0] = ( $index > 0) ? $basedir . '/' . $files[$index-1] : undef;
 	$neighbour_files_cache[1] = $files[$index+1] ? $basedir . '/' . $files[$index+1] : undef;
 }
+
+sub filename2tag
+{
+	my $fn = shift;
+	return undef unless defined $fn;
+	$fn = abs_path( $fn);
+	if ( $^O =~ /win32/i) {
+		$fn = lc $fn ; # oh yeah
+		$fn =~ s/\\/\//g;
+	}
+	return $fn;
+}
+
+sub tag_is_set { return defined($_[0]) ? exists $tags{ filename2tag( $_[0] ) } : undef }
+
+sub tags_toggle_image
+{
+	return unless defined $filename;
+	my $f = filename2tag( $filename);
+	if ( exists $tags{ $f }) {
+		delete $tags{ $f };
+	} else {
+		$tags{ $f } = 1;
+	};
+	update_window_title();
+	update_menu_tags();
+}
+
+sub tags_clear
+{
+	%tags = ();
+	update_window_title();
+	update_menu_tags();
+}
+
+sub tags_invert
+{
+	my ( $basedir, undef, @files) = get_dir_list();
+	for ( @files) {
+		my $fn = filename2tag("$basedir/$_");
+		if ( exists $tags{ $fn }) {
+			delete $tags{ $fn };
+		} else {
+			$tags{ $fn } = 1;
+		}
+	}
+	update_window_title();
+	update_menu_tags();
+}
+
+sub open_next_tagged_image
+{
+	my ( $self, $menu) = @_;
+	
+	return if $modified and not can_close_image();
+
+	return unless defined $filename;
+
+	my ( $basedir, $index, @files) = get_dir_list();
+	$index ||= 0;
+
+	return message("No files found") unless @files;
+	return message("No tagged files") unless scalar keys %tags;
+
+	if ( $menu eq 'prev_t' or $menu eq 'last_t') {
+		return open_new_image($neighbour_files_cache[0]) if 
+			$menu eq 'prev_t' and 
+			$neighbour_files_cache[0] and 
+			$tags{ $neighbour_files_cache[0] };
+		$index = $#files if $menu eq 'last_t';
+		my $i = $index;
+		while ( 1) {
+			my $f = filename2tag("$basedir/$files[$i]");
+			if ( $tags { $f }) {
+				$index = $i;
+				last;
+			}
+			if ( $index == 0) {
+				return if message(
+					"First tagged image in the directory, go to the last?", 
+					mb::YesNo
+				) != mb::Yes;
+				$i = $#files;
+			} else {
+				$i--;
+			}
+			return message("Cannot find any tagged file")
+				if $index == $i;
+		}
+	} elsif ( $menu eq 'next_t' or $menu eq 'first_t') {
+		return open_new_image($neighbour_files_cache[1]) if 
+			$menu eq 'next_t' and 
+			$neighbour_files_cache[1] and 
+			$tags{ $neighbour_files_cache[1] };
+		$index = 0 if $menu eq 'first_t';
+		my $i = $index;
+		while ( 1) {
+			my $f = filename2tag("$basedir/$files[$i]");
+			if ( $tags { $f }) {
+				$index = $i;
+				last;
+			}
+			if ( $index == $#files) {
+				return if message(
+					"Last tagged image in the directory, go to the first?", 
+					mb::YesNo
+				) != mb::Yes;
+				$i = 0;
+			} else {
+				$i++;
+			}
+			return message("Cannot find any tagged file")
+				if $index == $i;
+		}
+	}
+
+	open_new_image( "$basedir/$files[$index]");
+}
+
+sub files_get_selection
+{
+	if ( keys %tags) {
+		return sort keys %tags;
+	} elsif ( defined $filename) {
+		return ( $filename);
+	} else {
+		message("No tagged files, no open files, nothing to do");
+		return ();
+	}
+}
+
+sub files_multirun
+{
+	my ( $title, $sub, @files) = @_;
+	
+	my $i = 1;
+	my $n = @files;
+
+	for my $f ( @files) {
+		my $t = "$title $i of $n: $f";
+		$w-> text( $f );
+		$::application-> name( $f );
+		$i++;
+		my $res = $sub-> ( $f );
+		last unless $res;
+	}
+
+	update_window_title();
+}
+
+sub files_copy_move
+{
+	my $op = shift;
+	my $name = ucfirst $op;
+
+	require Prima::FileDialog;
+	eval { require File::Copy; };
+	return message( $@) if $@;
+
+	my @f = files_get_selection();
+	return unless @f;
+	my $d = Prima::ChDirDialog-> new(
+		text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
+		directory => getcwd,
+	);
+	return $d-> destroy 
+		unless $d-> execute == mb::Ok;
+	my $dir = $d-> directory;
+	$d-> destroy;
+	return message("No such directory '$dir'") unless -d $dir;
+
+	my $YesToAll = 0;
+	my $what = (( $op eq 'copy') ? 'Copying' : 'Moving');
+	files_multirun( 
+		$what,
+		sub { 
+			my $src = $_[0];
+			$src =~ /([^\\\/]*)$/;
+			my $dst = "$dir/$1";
+			if ( -f $dst and not $YesToAll) {
+				my $r = message(
+					"$dst already exists. Overwrite?",
+					mb::YesNo|mb::Abort|mb::Ignore|mb::Warning, {
+					buttons => {
+						mb::Ignore => {
+							text => 'Yes to all',
+						}
+					},
+				} );
+				return 0 if $r == mb::Abort;
+				return 1 if $r == mb::No;
+				$YesToAll++ if $r == mb::Ignore;
+			}
+			my $ok;
+			RETRY: $ok = File::Copy-> can($op)-> ( $src, $dst);
+			unless ( $ok) {
+				my $r = message(
+					"Error " . lcfirst($what) . " $src to $dir: $!",
+					mb::Abort|mb::Retry|mb::Cancel
+				);
+				return 0 if $r == mb::Abort;
+				return 1 if $r == mb::Cancel;
+				goto RETRY;
+			} else {
+				delete $tags{ filename2tag( $src ) };
+			}
+			return $ok;
+	}, @f);
+	update_menu_tags();
+	update_window_title();
+}
+
+sub files_copy { files_copy_move( 'copy' ) }
+sub files_move { files_copy_move( 'move' ) }
+
+sub files_delete
+{
+	my @f = files_get_selection();
+	return unless @f;
+
+	return unless mb::Ok == message(
+		"Really delete " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' ?',
+		mb::OkCancel|mb::Warning
+	);
+	files_multirun( 'Deleting', sub { 
+		my $ok;
+		RETRY: $ok = unlink $_[0];
+		unless ( $ok) {
+			my $r = message(
+				"Error deleting $_[0]:$!",
+				mb::Abort|mb::Retry|mb::Cancel
+			);
+			return 0 if $r == mb::Abort;
+			return 1 if $r == mb::Cancel;
+			goto RETRY;
+		} else {
+			delete $tags{ filename2tag( $_[0] ) };
+		}
+	}, @f);
+	update_menu_tags();
+	update_window_title();
+}
+
+sub files_execute
+{
+	my @f = files_get_selection();
+	return unless @f;
+
+	my $cmd = input_box(
+		'Execute command on '.  (( 1 == @f) ? $f[0] : scalar(@f) . ' files'),
+		'Command:',
+		'',
+		mb::OkCancel|mb::Help, {
+		helpTopic => "$0/Execute",
+	});
+	return unless defined $cmd and length $cmd;
+
+	if ( $cmd =~ /\$_/) {
+		for my $f ( @f) {
+			my $c = $cmd;
+			$c =~ s/\$_/$f/g;
+			$w-> text( $c );
+			$::application-> name( $c );
+			update_window_title();
+			next if 0 == system $c;
+			message("'$c' failed: error code $?");
+			last;
+		}
+	} else {
+		$cmd .= ' $*' unless $cmd =~ /\$\*/;
+		my $list = join(' ', @f);
+		$cmd =~ s/\$\*/$list/g;
+		$w-> text( $cmd );
+		$::application-> name( $cmd );
+		(0 == system($cmd)) or
+			message("'$cmd' failed: error code $?");
+	}
+	update_window_title();
+}
+
 
 sub can_close_image
 {
@@ -1287,7 +1597,7 @@ $ini = Prima::IniFile-> create(
 )-> section('Main');
 
 $w = Prima::Window-> create( menuItems => [
-	[ '~File' => [
+	[ 'file' => '~File' => [
 		['open'   => '~Open image...'  => 'Ctrl+O'       => '^O' => \&open_image],
 		['reopen' => '~Reopen image...'=> 'Ctrl+Shift+O' => '^#O' => \&reopen_image],
 		['save'   => '~Save image'     => 'Ctrl+S'       => '^S' => \&save_image],
@@ -1298,7 +1608,25 @@ $w = Prima::Window-> create( menuItems => [
 		['prev'   => '~Previous image' => 'Backspace'    => kb::Backspace => \&open_next_image ],
 		['last'   => '~Last image'     => 'End'          => kb::End       => \&open_next_image ],
 		[],
-		['delete' => '~Delete file'    => 'Del'          => kb::Delete    => \&delete_image ],
+		[ 'tags' => 'Ta~gs' => [
+			['tag'     => '~Tag/untag'              => 'Ins'            => kb::Insert             => \&tags_toggle_image  ],
+			['clear'   => '~Clear selection'                                                      => \&tags_clear   ],
+			['invert'  => '~Invert selection'       => '*'              => '*'                    => \&tags_invert  ],
+			[],
+			['first_t' => '~First tagged image'     => 'Ctrl+Home'      => km::Ctrl|kb::Home      => \&open_next_tagged_image ],
+			['next_t'  => '~Next tagged image'      => 'Ctrl+Space'     => km::Ctrl|kb::Space     => \&open_next_tagged_image ],
+			['prev_t'  => '~Previous tagged image'  => 'Ctrl+Backspace' => km::Ctrl|kb::Backspace => \&open_next_tagged_image ],
+			['last_t'  => '~Last tagged image'      => 'Ctrl+End'       => km::Ctrl|kb::End       => \&open_next_tagged_image ],
+			[],
+
+		]],
+		['tagged' => '~Tagged files' => [['tagset']]],
+		[],
+		['fcopy'   => 'Copy...'    => 'F5' => 'F5'         => \&files_copy ],
+		['fmove'   => 'Move...'    => 'F6' => 'F6'         => \&files_move ],
+		['delete'  => 'Delete...'  => 'Del' => kb::Delete  => \&files_delete ],
+		['execute' => 'E~xecute command on selected...' => 'Ctrl+X' => '^X'  => \&files_execute ],
+#		['delete' => '~Delete file'    => 'Del'          => kb::Delete    => \&delete_image ],
 		[],
 		['E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
@@ -1453,6 +1781,7 @@ $ini-> {Scaling} = $UseBufferedZoom
 scaling_set( $w, 'Scaling' . $ini-> {Scaling});
 
 update_menu_status();
+update_menu_tags();
 update_window_title();
 update_window_size();
 if ( @ARGV) {
@@ -1519,6 +1848,15 @@ Press shift and move the mouse around the picture
 
 Press middle button. To change zoom, rotate the mouse wheel.  The mouse pointer
 gets hidden, but press shift and move the pointer to show it back.
+
+=head2 Execute
+
+When executign a command for each tagged image, the following substitution rules
+apply. If C<$_> is found the command, the command is iterated for each tagged file
+and C<$_> is substituted to the filename. If C<$*> is found, then a single command
+is executed, where C<$*> is substitled to a list of all tagged files. Both C<$*> and
+C<$_> cannot be specified simultaneously. If neither is specified, C<$*> is assumed to be
+appended to the end of the command.
 
 =head1 BUGS & FEATURES
 
