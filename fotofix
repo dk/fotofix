@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.28 2007/07/28 21:58:07 dk Exp $
+# $Id: fotofix,v 1.29 2007/07/29 16:45:29 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -40,6 +40,10 @@ my $VERSION = 0.01;
 # than Prima native image scaling.
 my $UseBufferedZoom =
 	( $::application-> get_system_info->{apc} == apc::Unix) ? 0 : 1;
+
+# used in fullscreen mode
+my $UseShapeExtension = 
+	$::application-> get_system_value( sv::ShapeExtension);
 
 # This is the only parameter the red eye detector cares about, and is a balance of 
 # how much green and blue should be there to counterbalance the red. For example,
@@ -396,6 +400,20 @@ sub update_window_title
 		);
 	$w-> text( "FotoFix - $tag_info$is_modified$str");
 	$::application-> name( "FotoFix - $str");
+
+	if ( $fullscreen and $UseShapeExtension) {
+		my $w = $iv-> FullScreenStatus;
+		my $i = Prima::DeviceBitmap-> create(
+			width      => $w-> width,
+			height     => $w-> height,
+			monochrome => 1,
+			color      => cl::White,
+			backColor  => cl::Black,
+		);
+		$i-> clear;
+		$i-> text_out( "$tag_info$is_modified$str", 5, $i-> font-> descent);
+		$w-> shape( $i-> image);
+	}
 }
 
 sub update_menu_tags
@@ -571,9 +589,7 @@ sub scaling_set
 # by turning the fullscreen mode off
 sub fullscreen_x11
 {
-	my $f = shift() ? 1 : 0;
-	return if $fullscreen == $f;
-	if ( $fullscreen = $f) {
+	if ( shift) {
 		$iv-> set(
 			origin      => [0,0],
 			size        => [ $::application-> size],
@@ -588,7 +604,6 @@ sub fullscreen_x11
 			owner       => $w,
 		);
 	}
-	update_window_size();
 }
 
 # X11 method doesn't work nice for win32, because the cursed start panel stays in front
@@ -596,9 +611,7 @@ sub fullscreen_x11
 # a positive side, we can stop flipping back from fullscreen mode whenever we need a dialog.
 sub fullscreen_win32
 {
-	my $f = shift() ? 1 : 0;
-	return if $fullscreen == $f;
-	if ( $fullscreen = $f) {
+	if ( shift) {
 		@window_rect = $w-> rect;
 		$w-> set(
 			origin      => [0,0],
@@ -620,14 +633,34 @@ sub fullscreen_win32
 		$iv-> backColor( cl::Back);
 		$menu-> selected(1);
 	}
-	update_window_size();
 }
 
 sub fullscreen
 {
+	my $f = $_[0] ? 1 : 0;
+	return if $fullscreen == $f;
+	$fullscreen = $f;
 	$fullscreen_x11 ?
 		&fullscreen_x11 : 
 		&fullscreen_win32;
+	if ( $UseShapeExtension) {
+		if ( $f) {
+			$iv-> insert( Widget =>
+				name      => 'FullScreenStatus',
+				height    => $iv-> font-> height,
+				left      => 0,
+				top       => $iv-> height - 5,
+				width     => $iv-> width,
+				backColor => cl::LightGreen,
+				visible   => 0,
+			);
+			update_window_title();
+			$iv-> FullScreenStatus-> visible(1);
+		} else {
+			$iv-> FullScreenStatus-> destroy;
+		}
+	}
+	update_window_size();
 }
 
 sub open_image
@@ -1278,7 +1311,7 @@ sub iv_paint
 	my ( $self, $canvas) = @_;
 	$self-> on_paint( $canvas);
 	$canvas-> translate(0,0);
-	if ( $fullscreen and $filename) {
+	if ( $fullscreen and not($UseShapeExtension) and $filename) {
 		$canvas-> color( cl::LightGreen);
 		$canvas-> text_out( $filename, 10, $canvas-> height - $canvas-> font-> width - 10);
 	}
