@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.29 2007/07/29 16:45:29 dk Exp $
+# $Id: fotofix,v 1.30 2007/07/30 22:39:13 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1071,6 +1071,80 @@ sub files_copy_move
 
 sub files_copy { files_copy_move( 'copy' ) }
 sub files_move { files_copy_move( 'move' ) }
+	
+sub files_rename_exec
+{
+	my ( $what, $cmd, @files) = @_;
+	my $sub = eval { eval "sub { $cmd; }" };
+	return message( $@) if $@;
+
+	my ( $basedir, $index, @f) = get_dir_list();
+	populate_next_image_cache( $index, \@f);
+
+	local $_;
+	local $. = -1;
+	for my $f ( @files) {
+		my ( $path, $basename) = $f =~ m/^(.*)[\\\/]([^\\\/]*)$/;
+		
+		$.++;
+		$_ = $basename;
+		$sub->();
+		next if $f eq $_;
+		my $n = "$path/$_";
+		
+		my $ok;
+		RETRY: $ok = rename( $f, $n);
+		unless ( $ok) {
+			my $r = message_box(
+				$what,
+				"Error renaming $f to $n:$!",
+				mb::Abort|mb::Retry|mb::Cancel
+			);
+			return 0 if $r == mb::Abort;
+			return 1 if $r == mb::Cancel;
+			goto RETRY;
+		} else {
+			delete $tags{ filename2tag( $f ) };
+		}
+
+		$w-> text( "$what $f to $n..." );
+		$::application-> name( "$what $f to $n..." );
+		update_window_title();
+	}
+}
+
+sub files_rename
+{
+	my @f = files_get_selection();
+	return unless @f;
+
+	my $cmd = input_box(
+		'Rename '.  (( 1 == @f) ? $f[0] : scalar(@f) . ' files to'),
+		'Perl regular expression:',
+		'',
+		mb::OkCancel|mb::Help, {
+		helpTopic => "$0/Rename",
+	});
+	return unless defined $cmd and length $cmd;
+
+	files_rename_exec('Rename', $cmd, @f);
+}
+
+sub files_prefix
+{
+	my @f = files_get_selection();
+	return unless @f;
+
+	my $cmd = input_box(
+		'Prefix '.  (( 1 == @f) ? $f[0] : scalar(@f) . ' files with'),
+		'prefix:',
+		'',
+		mb::OkCancel
+	);
+	return unless defined $cmd and length $cmd;
+
+	files_rename_exec('Prefix', "s/^/$cmd/", @f );
+}
 
 sub files_delete
 {
@@ -1694,6 +1768,8 @@ $w = Prima::Window-> create( menuItems => [
 		[],
 		['fcopy'   => 'Copy...'    => 'F5'  => 'F5'         => \&files_copy ],
 		['fmove'   => 'Move...'    => 'F6'  => 'F6'         => \&files_move ],
+		['prefix'  => 'Add prefix...'=>'F7' => 'F7'         => \&files_prefix ],
+		['rename'  => 'Rename...'  => 'F8'  => 'F8'         => \&files_rename ],
 		['delete'  => 'Delete...'  => 'Del' => kb::Delete   => \&files_delete ],
 		['execute' => 'E~xecute on tagged...' => 'Ctrl+X' => '^X'  => \&files_execute ],
 		[],
@@ -1921,12 +1997,17 @@ gets hidden, but press shift and move the pointer to show it back.
 
 =head2 Execute
 
-When executign a command for each tagged image, the following substitution rules
+When executing a command for each tagged image, the following substitution rules
 apply. If C<$_> is found the command, the command is iterated for each tagged file
 and C<$_> is substituted to the filename. If C<$*> is found, then a single command
 is executed, where C<$*> is substitled to a list of all tagged files. Both C<$*> and
 C<$_> cannot be specified simultaneously. If neither is specified, C<$*> is assumed to be
 appended to the end of the command.
+
+=head2 Rename
+
+Apply a substitutive perl regular expression to each file, where each filename
+will be stored in C<$_>, and file index in C<$.>. 
 
 =head1 BUGS & FEATURES
 
