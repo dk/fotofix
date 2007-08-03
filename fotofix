@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.33 2007/08/03 20:05:08 dk Exp $
+# $Id: fotofix,v 1.34 2007/08/03 20:41:22 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -9,10 +9,10 @@
 # Prima: http://prima.eu.org/anon_cvs.html ( but will also work with
 #  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.21.tar.gz )
 #
+# optional dependencies:
 # IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/IPA-1.03.tar.gz 
 #    (or http://prima.eu.org/IPA/IPA-1.03.tar.gz if CPAN refuses)
 #
-# optional dependencies:
 # Prima::Image::Magick:
 #	http://search.cpan.org/~karasik/Prima-Image-Magick-0.02
 #  
@@ -24,10 +24,10 @@ use Prima qw(
 	Application ImageViewer StdDlg
 	MsgBox IniFile EventHook
 );
-use IPA::Misc qw(/./);
-use IPA::Point qw(/./);
-use IPA::Geometry qw(/./);
 use Cwd qw(getcwd abs_path);
+
+eval "use IPA;";
+my $UseIPA = not $@;
 
 eval "use Prima::Image::Magick;";
 my $UseImageMagick = not $@;
@@ -456,6 +456,8 @@ sub update_menu_status
 
 	$x = defined $filename;
 	$menu-> enabled( $_, $x) for qw(save delete);
+
+	$menu-> disable('redeyes') unless $UseIPA;
 }
 
 sub try_max_window_size
@@ -1493,6 +1495,13 @@ sub image_invert
 
 sub image_remove_red_eyes
 {
+	return message('No IPA installed')
+		unless $UseIPA;
+
+	require IPA::Misc;     IPA::Misc->     import('/./');
+	require IPA::Point;    IPA::Point->    import('/./'); 
+	require IPA::Geometry; IPA::Geometry-> import('/./'); 
+	
 	return message('Can only work on color images') 
 		if im::Color != ($image-> type & im::Category);
 	
@@ -1518,8 +1527,8 @@ sub image_remove_red_eyes
 	}
 
 	# keep strong red features by subtracting everything green AND blue
-	my $x = subtract( $r, $g, conversionType => IPA::conversionTrunc);
-	$x = subtract( $x, $b, conversionType => IPA::conversionTrunc);
+	my $x = subtract( $r, $g, conversionType => IPA::conversionTrunc());
+	$x = subtract( $x, $b, conversionType => IPA::conversionTrunc());
 	# have a binary mask
 	$x = threshold( $x, minvalue => 1);
 	# cut a hole with the mask in the original red channel
@@ -1960,7 +1969,18 @@ $w-> select;
 # uncomment this for simple benchmarking
 # open_next_image($w,'next') for 0..20; exit; 
 
-run Prima;
+while ( 1) {
+	eval { run Prima; };
+	last unless $@;
+	last if mb::Abort == message_box(
+		'Fotofix fatal error',
+		$@,
+		mb::Abort|mb::Ignore|mb::Error,
+		{ buttons => {
+			mb::Abort => { text => '~Quit' }
+		}},
+	);
+}
 
 exit;
 1;
