@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.32 2007/08/03 19:25:36 dk Exp $
+# $Id: fotofix,v 1.33 2007/08/03 20:05:08 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -512,10 +512,18 @@ sub update_window_size
 		);
 		try_max_window_size( @client, @ivsize );
 		
-		my @fs = $w-> frameSize;
-		$w-> frameOrigin(0,
-			$::application-> height - $fs[1]
-		) if $ini->{AutoPosition};
+		if ( $ini->{AutoPosition}) {
+			my @fo = (0, 0);
+			my $apph = $::application-> height;
+			if ( $::application-> can('get_indents')) {
+				my @i = $::application-> get_indents;
+				$apph -= $i[3];
+				$fo[$_] += $i[$_] for 0,1;
+			}
+			my @fs = $w-> frameSize;
+			$fo[1] = $apph - $fs[1];
+			$w-> frameOrigin( @fo);
+		}
 	}
 	
 	if ( $ini->{WindowFit} or $ini->{AutoBestFit}) {
