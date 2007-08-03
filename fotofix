@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.30 2007/07/30 22:39:13 dk Exp $
+# $Id: fotofix,v 1.31 2007/08/03 09:19:13 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -760,7 +760,11 @@ sub get_next_image_index
 		($min_dist,$found_index) = ( $distance,$i) if
 			not defined($min_dist) or $min_dist > $distance;
 	}
-	return $found_index;
+	if ( defined $found_index) {
+		return $found_index - $sign;
+	} else {
+		return $next ? $#$current_files : 0;
+	}
 }
 
 sub populate_next_image_cache
@@ -790,9 +794,8 @@ sub open_next_image
 	return message("No files found") unless @files;
 
 	if ( $menu eq 'prev') {
-		$index = get_next_image_index( 0, \@files) + 1
+		$index = get_next_image_index( 0, \@files)
 			unless defined $index;
-		$index = 0 unless defined $index;
 		if ( $index == 0) {
 			return if message("First image in the directory, go to the last?", mb::YesNo) != mb::Yes;
 			$index = $#files;
@@ -800,9 +803,8 @@ sub open_next_image
 			$index--;
 		}
 	} elsif ( $menu eq 'next') {
-		$index = get_next_image_index( 1, \@files) - 1
+		$index = get_next_image_index( 1, \@files)
 			unless defined $index;
-		$index = $#files unless defined $index;
 		if ( $index == $#files) {
 			return if message("Last image in the directory, go to the first?", mb::YesNo) != mb::Yes;
 			$index = 0;
@@ -910,9 +912,8 @@ sub open_next_tagged_image
 
 	if ( $menu eq 'prev_t' or $menu eq 'last_t') {
 		if ( $menu eq 'prev_t') {
-			$index = get_next_image_index( 0, \@files) + 1
+			$index = get_next_image_index( 0, \@files)
 				unless defined $index;
-			$index = 0 unless defined $index;
 		} else {
 			$index = $#files;
 		}
@@ -938,9 +939,8 @@ sub open_next_tagged_image
 		}
 	} elsif ( $menu eq 'next_t' or $menu eq 'first_t') {
 		if ( $menu eq 'next_t') {
-			$index = get_next_image_index( 1, \@files) - 1
+			$index = get_next_image_index( 1, \@files)
 				unless defined $index;
-			$index = $#files unless defined $index;
 		} else {
 			$index = 0;
 		}
