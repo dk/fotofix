@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.36 2007/08/06 12:27:48 dk Exp $
+# $Id: fotofix,v 1.37 2007/08/06 17:50:52 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -125,16 +125,19 @@ sub create_pointer
 
 sub loadIPA
 {
-	next if $IPALoaded;
+	return 1 if $IPALoaded;
 
-	return message('No IPA installed')
-		unless $UseIPA;
+	unless ( $UseIPA) {
+		message('No IPA installed');
+		return 0;
+	}
 
 	require IPA::Misc;     IPA::Misc->     import('/./');
 	require IPA::Point;    IPA::Point->    import('/./'); 
 	require IPA::Geometry; IPA::Geometry-> import('/./'); 
 
 	$IPALoaded++;
+	return 1;
 }
 
 sub image_reset_display_buffer
