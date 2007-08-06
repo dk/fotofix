@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.35 2007/08/03 20:47:30 dk Exp $
+# $Id: fotofix,v 1.36 2007/08/06 12:27:48 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -7,7 +7,7 @@
 #
 # dependencies:
 # Prima: http://prima.eu.org/anon_cvs.html ( but will also work with
-#  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.21.tar.gz )
+#  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.22.tar.gz )
 #
 # optional dependencies:
 # IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/IPA-1.03.tar.gz 
