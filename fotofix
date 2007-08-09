@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.38 2007/08/09 08:15:17 dk Exp $
+# $Id: fotofix,v 1.39 2007/08/09 11:16:49 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1831,7 +1831,11 @@ $w = Prima::Window-> create( menuItems => [
 		}],
 		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
 			my $i = $::application-> Clipboard-> image;
-			image_replace( $i) if $i;
+			if ( $i) {
+				$filename = 'Clipboard'
+					unless defined $filename;
+				image_replace( $i);
+			}
 		}],
 		['-crop' => 'Cr~op' => sub {
 			return unless $image and $region;
