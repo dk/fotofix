@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: fotofix,v 1.37 2007/08/06 17:50:52 dk Exp $
+# $Id: fotofix,v 1.38 2007/08/09 08:15:17 dk Exp $
 
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1976,7 +1976,7 @@ if ( @ARGV) {
 		open_new_image( $ARGV[0]);
 	} elsif ( -d $ARGV[0]) {
 		$filename = "$ARGV[0]/.";
-		open_next_image($w, 'next');
+		open_next_image($w, 'first');
 	} else {
 		message("$ARGV[0] cannot be opened");
 	}
