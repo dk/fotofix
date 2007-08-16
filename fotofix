@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.40 2007/08/09 18:26:04 dk Exp $
+# $Id: fotofix,v 1.41 2007/08/16 19:41:41 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -71,7 +71,9 @@ my (
 	@max_window_size,
 	$IPALoaded,
 );
+
 my $zoom = 1.0;
+my @last_size = (0,0);
 my $fullscreen_x11 = $::application-> get_system_info->{apc} == apc::Unix;
 my $modified   = 0;
 my $fullscreen = 0;
@@ -396,7 +398,7 @@ sub update_window_title
 	if ( $img) {
 		$str = $filename;
 		$str =~ m/([^\\\/]*)$/;
-		$str = sprintf("%s (%dx%dx%d bpp)", $1,
+		$str = sprintf("%s (%dx%dx%d)", $1,
 			$img-> width, $img-> height, $img-> type & im::BPP);
 	} else {
 		$str = '.Untitled';
@@ -410,8 +412,16 @@ sub update_window_title
 			"]";
 	} elsif ( defined $current_pixel) {
 		$str .= " $current_pixel";
-	} else {
+	} elsif ( $img) {
 		$str .= ' ' . int(100 * $zoom) . '%';
+	}
+
+	if ( $img) {
+		my @s = map { int } ( $img-> width * $zoom, $img-> height * $zoom);
+		if ( $s[0] != $last_size[0] or $s[1] != $last_size[1]) {
+			@last_size = @s;
+			$str = sprintf("[%d:%d] %s", @s, $str);
+		}
 	}
 
 	my $is_modified = $modified ? '* ' : '';
