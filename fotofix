@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.41 2007/08/16 19:41:41 dk Exp $
+# $Id: fotofix,v 1.42 2007/08/18 10:31:41 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -70,6 +70,7 @@ my (
 	$current_pixel, %tags,
 	@max_window_size,
 	$IPALoaded,
+	$open_dialog, $save_dialog, $chdir_dialog,
 );
 
 my $zoom = 1.0;
@@ -714,18 +715,20 @@ sub open_image
 {
 	return if $modified and not can_close_image();
 
-	my $dlg  = Prima::ImageOpenDialog-> create(
-		directory => $ini-> {Path},
-	);
-	my $i    = $dlg-> load;
+	$open_dialog = Prima::ImageOpenDialog-> create()
+		unless $open_dialog;
+		
+	$open_dialog-> directory($ini-> {Path});
+
+	my $i    = $open_dialog-> load;
 	if ( $i) {
 		undef $region;
-		$filename = $dlg-> fileName;
+		$filename = $open_dialog-> fileName;
 		$modified = 0;
 		%neighbour_files_cache = ();
 		$filecodec = $i-> {extras}->{codecID};
-		%tags = () if ( $ini-> {Path} || '') ne $dlg-> directory;
-		$ini-> {Path} = $dlg-> directory;
+		%tags = () if ( $ini-> {Path} || '') ne $open_dialog-> directory;
+		$ini-> {Path} = $open_dialog-> directory;
 
 		$zoom = 1.0;
 		$image = $i;
@@ -737,7 +740,6 @@ sub open_image
 		
 		$iv-> update_view;
 	}
-	$dlg-> destroy;
 }
 
 sub open_new_image
@@ -882,18 +884,19 @@ sub save_image_as
 {
 	my $ok;
 	$image-> {extras}->{codecID} = $filecodec;
-	my $dlg = Prima::ImageSaveDialog-> create( 
-		image     => $image,
+	$save_dialog = Prima::ImageSaveDialog-> create() 
+		unless $save_dialog;
+	$save_dialog-> set(
 		directory => $ini-> {Path},
+		image     => $image,
 	);
-	if ( $dlg-> save( $image)) {
-		$filename = $dlg-> fileName;
+	if ( $save_dialog-> save( $image)) {
+		$filename = $save_dialog-> fileName;
 		$modified = 0;
 		$ok = 1;
-		$ini-> {Path} = $dlg-> directory;
+		$ini-> {Path} = $save_dialog-> directory;
 		update_window_title();
 	}
-	$dlg-> destroy;
 	$ok;
 }
 
@@ -1058,14 +1061,15 @@ sub files_copy_move
 
 	my @f = files_get_selection();
 	return unless @f;
-	my $d = Prima::ChDirDialog-> new(
-		text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
+	$chdir_dialog = Prima::ChDirDialog-> new(
 		directory => getcwd,
+	) unless $chdir_dialog;
+	$chdir_dialog-> set(
+		text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
 	);
-	return $d-> destroy 
-		unless $d-> execute == mb::Ok;
-	my $dir = $d-> directory;
-	$d-> destroy;
+	return unless $chdir_dialog-> execute == mb::Ok;
+	my $dir = $chdir_dialog-> directory;
+
 	return message("No such directory '$dir'") unless -d $dir;
 
 	if ( $op eq 'move') {
