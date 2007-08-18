@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.42 2007/08/18 10:31:41 dk Exp $
+# $Id: fotofix,v 1.43 2007/08/18 11:18:16 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -21,7 +21,7 @@ V
 
 use strict;
 use warnings;
-use Prima qw(
+use Prima 1.22 qw(
 	Application ImageViewer StdDlg
 	MsgBox IniFile EventHook
 );
@@ -381,11 +381,9 @@ sub get_client_size
 	$as[1] -= $::application-> get_system_value(sv::YbsSizeable) * 2
 		+ $::application-> get_system_value(sv::YMenu) 
 		+ $::application-> get_system_value(sv::YTitleBar);
-	if ( $::application-> can('get_indents')) {
-		my @i = $::application-> get_indents();
-		$as[0] -= $i[0] + $i[2];
-		$as[1] -= $i[1] + $i[3];
-	}
+	my @i = $::application-> get_indents();
+	$as[0] -= $i[0] + $i[2];
+	$as[1] -= $i[1] + $i[3];
 	for (0,1) {
 		$as[$_] = $max_window_size[$_] if defined $max_window_size[$_];
 	}
@@ -550,11 +548,9 @@ sub update_window_size
 		if ( $ini->{AutoPosition}) {
 			my @fo = (0, 0);
 			my $apph = $::application-> height;
-			if ( $::application-> can('get_indents')) {
-				my @i = $::application-> get_indents;
-				$apph -= $i[3];
-				$fo[$_] += $i[$_] for 0,1;
-			}
+			my @i = $::application-> get_indents;
+			$apph -= $i[3];
+			$fo[$_] += $i[$_] for 0,1;
 			my @fs = $w-> frameSize;
 			$fo[1] = $apph - $fs[1];
 			$w-> frameOrigin( @fo);
