@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.43 2007/08/18 11:18:16 dk Exp $
+# $Id: fotofix,v 1.44 2007/08/18 15:01:16 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -71,6 +71,7 @@ my (
 	@max_window_size,
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog,
+	$slideshow,
 );
 
 my $zoom = 1.0;
@@ -397,8 +398,15 @@ sub update_window_title
 	if ( $img) {
 		$str = $filename;
 		$str =~ m/([^\\\/]*)$/;
-		$str = sprintf("%s (%dx%dx%d)", $1,
-			$img-> width, $img-> height, $img-> type & im::BPP);
+		my $f = $1;
+
+		if ( $slideshow) {
+			my ( undef, $index, @files) = get_dir_list();
+			$str = sprintf("(%d/%d) %s", ($index||0) + 1, scalar(@files), $f);
+		} else {
+			$str = sprintf("%s (%dx%dx%d)", $f,
+				$img-> width, $img-> height, $img-> type & im::BPP);
+		}
 	} else {
 		$str = '.Untitled';
 	}
@@ -411,11 +419,11 @@ sub update_window_title
 			"]";
 	} elsif ( defined $current_pixel) {
 		$str .= " $current_pixel";
-	} elsif ( $img) {
+	} elsif ( $img and not $slideshow) {
 		$str .= ' ' . int(100 * $zoom) . '%';
 	}
 
-	if ( $img) {
+	if ( $img and not $slideshow) {
 		my @s = map { int } ( $img-> width * $zoom, $img-> height * $zoom);
 		if ( $s[0] != $last_size[0] or $s[1] != $last_size[1]) {
 			@last_size = @s;
@@ -432,7 +440,9 @@ sub update_window_title
 			'] ') :
 			''
 		);
-	$w-> text( "FotoFix - $tag_info$is_modified$str");
+	my $infostr = "$tag_info$is_modified$str";
+
+	$w-> text( "FotoFix - $infostr");
 	$::application-> name( "FotoFix - $str");
 
 	if ( $fullscreen and $UseShapeExtension) {
@@ -445,7 +455,7 @@ sub update_window_title
 			backColor  => cl::Black,
 		);
 		$i-> clear;
-		$i-> text_out( "$tag_info$is_modified$str", 5, $i-> font-> descent);
+		$i-> text_out( $infostr, 5, $i-> font-> descent);
 		$w-> shape( $i-> image);
 	}
 }
@@ -475,7 +485,7 @@ sub update_menu_status
 	$menu-> enabled( $_ , $x) for qw(
 		saveas next prev first last reopen
 		convert copy copybits view rotate effects
-		tag
+		tag slideshow
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
@@ -1057,14 +1067,14 @@ sub files_copy_move
 
 	my @f = files_get_selection();
 	return unless @f;
-	$chdir_dialog = Prima::ChDirDialog-> new(
-		directory => getcwd,
-	) unless $chdir_dialog;
+	$chdir_dialog = Prima::ChDirDialog-> new()
+		unless $chdir_dialog;
 	$chdir_dialog-> set(
 		text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
+		directory => $ini-> {ChdirPath},
 	);
 	return unless $chdir_dialog-> execute == mb::Ok;
-	my $dir = $chdir_dialog-> directory;
+	my $dir = $ini-> {ChdirPath} = $chdir_dialog-> directory;
 
 	return message("No such directory '$dir'") unless -d $dir;
 
@@ -1472,8 +1482,7 @@ sub conversion_set
 		( $menuID eq 'N') ? ict::None : (
 		( $menuID eq 'O') ? ict::Ordered : (
 		( $menuID eq 'E') ? ict::ErrorDiffusion : ict::Optimized
-	))
-	);  
+	)));  
 }   
 
 sub image_convert
@@ -1777,8 +1786,61 @@ sub edit_palette
 			if $was_grayscale;
 		image_reset_display_buffer();
 	}
-	
 }
+
+sub slideshow_start
+{
+	return if $slideshow;
+
+	$w-> insert( Timer =>
+		name    => 'SlideshowTimer',
+		timeout => $ini-> {SlideDelay} * 1000,
+		onTick  => sub {
+			# same as open_next_image( $w, 'next') but no question asked
+			my ( $basedir, $index, @files) = get_dir_list();
+			$index = get_next_image_index( 1, \@files)
+				unless defined $index;
+			return slideshow_stop() if $index == $#files;
+			$index++;
+			open_new_image( "$basedir/$files[$index]");
+		},
+	)-> start;
+		
+	$slideshow = 1;
+	update_window_title();
+}
+
+sub slideshow_stop
+{
+	return unless $slideshow;
+
+	$w-> SlideshowTimer-> destroy;
+	$slideshow = undef;
+	update_window_title();
+}
+
+sub slideshow_toggle
+{
+	$slideshow ?
+		slideshow_stop :
+		slideshow_start;
+}
+
+sub slideshow_set_delay
+{{
+	my $delay = input_box(
+		'Set slideshow delay',
+		'In seconds:',
+		$ini-> {SlideDelay},
+		mb::OkCancel
+	);
+	return unless defined $delay and length $delay;
+	unless ( $delay =~ /^\d+(\.\d+)?$/) {
+		message("Number required");
+		redo;
+	}
+	$ini-> {SlideDelay} = $delay;
+}}
 
 $ini = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
@@ -1788,6 +1850,8 @@ $ini = Prima::IniFile-> create(
 				WindowFit    => 0,
 				ImageFit     => 0,
 				Path         => '.',
+				ChdirPath    => '.',
+				SlideDelay   => 3,
 				AutoPosition => 0,
 			],
 		],
@@ -1929,6 +1993,9 @@ $w = Prima::Window-> create( menuItems => [
 		[],
 		['~Increase' => '+' => '+' => sub { zoom_scale 1.1 }],
 		['~Decrease' => '-' => '-' => sub { zoom_scale 0.9 }],
+		[],
+		['slideshow' => 'Begin/end ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
+		[ 'Set slideshow delay...' => \&slideshow_set_delay ],
 	]],
 	[],
 	['~Help' => [
@@ -1975,9 +2042,12 @@ $iv = $w-> insert( ImageViewer =>
 );
 
 Prima::EventHook::install( 
-	sub { fullscreen(0) },
+	sub { 
+		fullscreen(0) if $fullscreen_x11;
+		slideshow_stop;
+	},
 	event  => 'Execute',
-) if $fullscreen_x11;
+);
 
 $ini-> {Scaling} = $UseBufferedZoom 
 	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
