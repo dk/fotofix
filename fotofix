@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.44 2007/08/18 15:01:16 dk Exp $
+# $Id: fotofix,v 1.45 2007/09/14 08:12:36 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -134,7 +134,7 @@ sub loadIPA
 	return 1 if $IPALoaded;
 
 	unless ( $UseIPA) {
-		message('No IPA installed');
+		message('This function requires IPA module installed');
 		return 0;
 	}
 
@@ -495,10 +495,6 @@ sub update_menu_status
 
 	$x = defined $filename;
 	$menu-> enabled( $_, $x) for qw(save delete);
-
-	unless ( $UseIPA) {
-		$menu-> disable($_) for qw(rotate redeyes);
-	}
 }
 
 sub try_max_window_size
