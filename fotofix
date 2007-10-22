@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.45 2007/09/14 08:12:36 dk Exp $
+# $Id: fotofix,v 1.46 2007/10/22 07:38:32 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -722,7 +722,7 @@ sub open_image
 		
 	$open_dialog-> directory($ini-> {Path});
 
-	my $i    = $open_dialog-> load;
+	my $i    = $open_dialog-> load( progressViewer => $iv);
 	if ( $i) {
 		undef $region;
 		$filename = $open_dialog-> fileName;
@@ -747,8 +747,14 @@ sub open_image
 sub open_new_image
 {
 	my $fn = shift;
-	my $i = Prima::Image-> load($fn, loadExtras => 1);
-	if ($i) {
+	my $i = Prima::Image-> new;
+	
+	my $can_watch = $iv-> can('watch_load_progress');
+	$iv-> watch_load_progress( $i) if $can_watch;
+	my $ok = $i-> load($fn, loadExtras => 1);
+	$iv-> unwatch_load_progress if $can_watch;
+
+	if ($ok) {
 		undef $region;
 		$filename = $fn;
 		$modified = 0;
