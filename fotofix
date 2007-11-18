@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.47 2007/11/11 12:45:50 dk Exp $
+# $Id: fotofix,v 1.48 2007/11/18 20:09:41 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -21,7 +21,7 @@ V
 
 use strict;
 use warnings;
-use Prima 1.22 qw(
+use Prima 1.23 qw(
 	Application ImageViewer StdDlg
 	MsgBox IniFile EventHook
 );
@@ -226,18 +226,6 @@ sub zoom_set
 	update_window_title();
 }
 
-# copy-paste from ImageViewer.pm: it cannot do arbitrary zoom factors, only
-# with fractional parts from 0.02 to 0.98 with 0.01-0.02 steps
-sub zoom_round
-{
-	my $zoom = shift;
-	$zoom = 100 if $zoom > 100;
-	$zoom = 1 if $zoom <= 0.01;
-	my $dv = int( 100 * ( $zoom - int( $zoom)) + 0.5);
-	$dv-- if ($dv % 2) and ( $dv % 5);
-	return int($zoom) + $dv / 100;
-}
-		
 # returns zoom factor required to fit the image to the given size
 sub zoom_from_window_size
 {
@@ -253,11 +241,11 @@ sub zoom_from_window_size
 	my $y = $as[1] / $is[1];
 	my $zoom = ($x < $y) ? $x : $y;
 	
-	$zoom = zoom_round( $zoom);
+	$zoom = $iv-> zoom_round( $zoom);
 	# Zoom roundoffs may create a slighlty larger zoom which might result 
 	# in (undesirable) scrollbars. We fight this by reducing zoom factor slightly.
 	while ( grep { $xs[$_] < int($is[$_] * $zoom + .5)} (0,1)) {
-		my $z = zoom_round( $zoom - 0.01);
+		my $z = $iv-> zoom_round( $zoom - 0.01);
 		last if $z >= $zoom;
 		$zoom = $z;
 	}
@@ -750,10 +738,9 @@ sub open_new_image
 	my $fn = shift;
 	my $i = Prima::Image-> new;
 	
-	my $can_watch = $iv-> can('watch_load_progress');
-	$iv-> watch_load_progress( $i) if $can_watch;
+	$iv-> watch_load_progress( $i);
 	my $ok = $i-> load($fn, loadExtras => 1);
-	$iv-> unwatch_load_progress if $can_watch;
+	$iv-> unwatch_load_progress;
 
 	if ($ok) {
 		undef $region;
@@ -2024,20 +2011,21 @@ ABOUT
 $menu = $w-> menu;
 
 $iv = $w-> insert( ImageViewer =>
-	size	     => [ $w-> size],
-	origin       => [ 0, 0],
-	growMode     => gm::Client,
-	quality      => 1,
-	selectable   => 1,
-	name         => 'IV',
-	valignment   => ta::Middle,
-	alignment    => ta::Center,
-	onMouseDown  => \&iv_mousedown,
-	onMouseUp    => \&iv_mouseup,
-	onMouseMove  => \&iv_mousemove,
-	onMouseWheel => \&iv_mousewheel,
-	onPaint      => \&iv_paint,
-	onSize       => \&iv_size,
+	size	      => [ $w-> size],
+	origin        => [ 0, 0],
+	growMode      => gm::Client,
+	quality       => 1,
+	selectable    => 1,
+	name          => 'IV',
+	zoomPrecision => 1000,
+	valignment    => ta::Middle,
+	alignment     => ta::Center,
+	onMouseDown   => \&iv_mousedown,
+	onMouseUp     => \&iv_mouseup,
+	onMouseMove   => \&iv_mousemove,
+	onMouseWheel  => \&iv_mousewheel,
+	onPaint       => \&iv_paint,
+	onSize        => \&iv_size,
 
 	( $fullscreen_x11 ? (
 	onKeyDown    => \&iv_keydown
