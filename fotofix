@@ -1,10 +1,10 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.48 2007/11/18 20:09:41 dk Exp $
+# $Id: fotofix,v 1.49 2008/02/14 08:45:54 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
-# rotate images, and remove red eyes (if lucky, and if IPA is installed)
+# rotate images, and remove red eyes (with some luck, and if IPA is installed)
 #
 # dependencies:
 # Prima: http://prima.eu.org/anon_cvs.html ( but will also work with
@@ -2093,7 +2093,7 @@ FotoFix - simple image viewer
 
 FotoFix is a simple image viewer with simple capabilities to take care of
 freshly downloaded photos from your camera - can walk image lists, rotate
-images, and remove red eyes (if lucky). It was inspired by IrfanView for
+images, and remove red eyes (with some luck). It was inspired by IrfanView for
 Windows, a great but unfortunately non-portable and closed-source product.
 My experience with various image viewers came to a point where I was no 
 longer satisfied with any, so I wrote yet another one.
