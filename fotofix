@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.50 2008/04/04 13:26:07 dk Exp $
+# $Id: fotofix,v 1.51 2008/04/04 15:54:49 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -71,7 +71,7 @@ my (
 	@max_window_size,
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog,
-	$slideshow,
+	$slideshow, $last_file_charged,
 );
 
 my $zoom = 1.0;
@@ -728,6 +728,7 @@ sub open_image
 		update_window_size();
 		update_window_title();
 		update_menu_status();
+		last_file_add();
 		
 		$iv-> update_view;
 	}
@@ -2210,6 +2211,49 @@ sub slideshow_set_delay
 	$ini-> {SlideDelay} = $delay;
 }}
 
+sub last_file_charge    { $last_file_charged = 1 }
+sub last_file_add       { $last_file_charged = 1; last_file_discharge() }
+sub last_file_discharge
+{
+	return unless $last_file_charged;
+	undef $last_file_charged;
+	return unless defined $filename;
+
+	my @last_files;
+	my @indexes;
+	my $exists;
+	for ( keys %$ini) {
+		next unless /^LastFile(\d+)$/;
+		push @indexes, $_;
+		$last_files[$1] = $ini-> {$_};
+		$exists = $1 if $ini->{$_} eq $filename;
+	}
+	if ( $exists) {
+		splice( @last_files, $exists, 1, $last_files[$exists]);
+	} else {
+		push @last_files, $filename;
+	}
+	shift @last_files while 5 < @last_files;
+	@last_files = grep { defined } @last_files;
+
+	my $x = $menu-> get_items('lastfile');
+	if ( $x) {
+		$menu-> remove( $_-> [0]) for @$x;
+	}
+	
+	delete @$ini{@indexes};
+	my $idx = 1;
+	my @set;
+	for my $file ( @last_files) {
+		$ini-> {'LastFile' . $idx } = $file;
+		push @set, [ $file, "~$idx", $idx, sub { open_new_image($file) }];
+		$idx++;
+	}
+	@set = ['lastfileset'] unless @set;
+
+	$menu-> insert( \@set, 'lastfile', 0);
+}
+
 $ini = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
@@ -2235,7 +2279,7 @@ $w = Prima::Window-> create( menuItems => [
 		['first'  => '~First image'    => 'Home'         => kb::Home      => \&open_next_image ],
 		['next'   => '~Next image'     => 'Space'        => kb::Space     => \&open_next_image ],
 		['prev'   => '~Previous image' => 'Backspace'    => kb::Backspace => \&open_next_image ],
-		['last'   => '~Last image'     => 'End'          => kb::End       => \&open_next_image ],
+		['last'   => 'Last image'     => 'End'          => kb::End       => \&open_next_image ],
 		[],
 		[ 'tags' => 'Ta~gs' => [
 			['tag'     => '~Tag/untag'              => 'Ins'            => kb::Insert             => \&tags_toggle_image  ],
@@ -2249,7 +2293,8 @@ $w = Prima::Window-> create( menuItems => [
 			[],
 
 		]],
-		['tagged' => '~Tagged files' => [['tagset']]],
+		['tagged'  => '~Tagged files' => [['tagset']]],
+		['lastfile'=> '~Last opened files' => [['lastfileset']]],
 		[],
 		['fcopy'   => 'Copy...'    => 'F5'  => 'F5'         => \&files_copy ],
 		['fmove'   => 'Move...'    => 'F6'  => 'F6'         => \&files_move ],
@@ -2428,6 +2473,7 @@ update_menu_tags();
 update_window_title();
 update_window_size();
 if ( @ARGV) {
+	last_file_charge;
 	if ( -f $ARGV[0]) {
 		open_new_image( $ARGV[0]);
 	} elsif ( -d $ARGV[0]) {
@@ -2436,6 +2482,7 @@ if ( @ARGV) {
 	} else {
 		message("$ARGV[0] cannot be opened");
 	}
+	last_file_discharge;
 }
 
 $w-> show;
