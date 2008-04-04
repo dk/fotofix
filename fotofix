@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.51 2008/04/04 15:54:49 dk Exp $
+# $Id: fotofix,v 1.52 2008/04/04 16:06:48 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -2344,7 +2344,7 @@ $w = Prima::Window-> create( menuItems => [
 			['E' => '~Error diffusion' => \&conversion_set], 
 			['*P' => 'O~ptimized'      => \&conversion_set], 
 		]],
-		[ 'resize' => 'Re~size' => 'Ctrl+R' => '^R' => \&image_resize, ],
+		[ 'resize' => 'Re~size...' => 'Ctrl+R' => '^R' => \&image_resize, ],
 		[ 'rotate' => '~Rotate and mirror' => [
 			['Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(90) }],
 			['Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(270) }],
