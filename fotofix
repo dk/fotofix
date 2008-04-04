@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.49 2008/02/14 08:45:54 dk Exp $
+# $Id: fotofix,v 1.50 2008/04/04 13:26:07 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -23,7 +23,7 @@ use strict;
 use warnings;
 use Prima 1.23 qw(
 	Application ImageViewer StdDlg
-	MsgBox IniFile EventHook
+	MsgBox IniFile EventHook ComboBox
 );
 use Cwd qw(getcwd abs_path);
 
@@ -474,7 +474,7 @@ sub update_menu_status
 	$menu-> enabled( $_ , $x) for qw(
 		saveas next prev first last reopen
 		convert copy copybits view rotate effects
-		tag slideshow
+		tag slideshow resize
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
@@ -1502,6 +1502,384 @@ sub image_rotate
 	image_replace($i);
 }
 
+
+my $ResizeFM = 
+# This is resize.fm included as is in its entirety. If you want to edit it
+# with VB, just copy it to a file. 
+# <--- cut from here --->
+# VBForm version file=1.2 builder=0.2
+# [preload] Prima::ComboBox
+sub
+{
+	return (
+	'Label1' => {
+		class   => 'Prima::Label',
+		module  => 'Prima::Label',
+		siblings => [qw(focusLink)],
+		profile => {
+			owner => 'Form1',
+			text => '~Width',
+			focusLink => 'Width',
+			origin => [ 8, 180],
+			name => 'Label1',
+			size => [ 143, 23],
+	}},
+	'Form1' => {
+		class   => 'Prima::Window',
+		module  => 'Prima::Classes',
+		parent => 1,
+		profile => {
+			sizeDontCare => 0,
+			text => 'Resize image',
+			name => 'Form1',
+			origin => [ 817, 580],
+			originDontCare => 0,
+			size => [ 467, 214],
+	}},
+	'Label2' => {
+		class   => 'Prima::Label',
+		module  => 'Prima::Label',
+		siblings => [qw(focusLink)],
+		profile => {
+			owner => 'Form1',
+			text => '~Height',
+			focusLink => 'Height',
+			name => 'Label2',
+			origin => [ 8, 132],
+			size => [ 143, 23],
+	}},
+	'Scaling' => {
+		class   => 'Prima::ComboBox',
+		module  => 'Prima::ComboBox',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 4,
+			text => '',
+			name => 'Scaling',
+			origin => [ 160, 156],
+			style => cs::DropDownList,
+			size => [ 143, 23],
+	}},
+	'Label3' => {
+		class   => 'Prima::Label',
+		module  => 'Prima::Label',
+		siblings => [qw(focusLink)],
+		profile => {
+			owner => 'Form1',
+			text => '~Scaling',
+			focusLink => 'Scaling',
+			name => 'Label3',
+			origin => [ 160, 180],
+			size => [ 143, 23],
+	}},
+	'Color' => {
+		class   => 'Prima::ColorComboBox',
+		module  => 'Prima::ColorDialog',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 5,
+			name => 'Color',
+			origin => [ 160, 108],
+			size => [ 143, 23],
+	}},
+	'Label4' => {
+		class   => 'Prima::Label',
+		module  => 'Prima::Label',
+		siblings => [qw(focusLink)],
+		profile => {
+			owner => 'Form1',
+			focusLink => 'Color',
+			text => '~Color fill',
+			name => 'Label4',
+			origin => [ 160, 132],
+			size => [ 143, 23],
+	}},
+	'Proportional' => {
+		class   => 'Prima::CheckBox',
+		module  => 'Prima::Buttons',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 2,
+			text => '~Proportional',
+			name => 'Proportional',
+			origin => [ 8, 84],
+			size => [ 143, 23],
+	}},
+	'Stretch' => {
+		class   => 'Prima::CheckBox',
+		module  => 'Prima::Buttons',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 3,
+			text => 'Stretc~h',
+			origin => [ 8, 60],
+			name => 'Stretch',
+			size => [ 143, 23],
+	}},
+	'Placement' => {
+		class   => 'Prima::ComboBox',
+		module  => 'Prima::ComboBox',
+		profile => {
+			owner => 'Form1',
+			style => cs::DropDownList,
+			origin => [ 160, 60],
+			name => 'Placement',
+			size => [ 143, 23],
+			tabOrder => 6,
+			text => 'Center Center',
+			items => ['Top Left', 'Top Center', 'Top Right', 'Center Left', 'Center Center', 'Center Right', 'Bottom Left', 'Bottom Center', 'Bottom Right', ],
+	}},
+	'Label5' => {
+		class   => 'Prima::Label',
+		module  => 'Prima::Label',
+		siblings => [qw(focusLink)],
+		profile => {
+			owner => 'Form1',
+			text => 'P~lacement',
+			focusLink => 'Scaling',
+			name => 'Label5',
+			origin => [ 160, 84],
+			size => [ 143, 23],
+	}},
+	'Width' => {
+		class   => 'Prima::SpinEdit',
+		module  => 'Prima::Sliders',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 0,
+			min => 1,
+			max => 16384,
+			origin => [ 8, 156],
+			name => 'Width',
+			size => [ 143, 23],
+	}},
+	'Height' => {
+		class   => 'Prima::SpinEdit',
+		module  => 'Prima::Sliders',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 1,
+			min => 1,
+			max => 16384,
+			name => 'Height',
+			origin => [ 8, 108],
+			size => [ 143, 23],
+	}},
+	'Display' => {
+		class   => 'Prima::Widget',
+		module  => 'Prima::Classes',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 7,
+			name => 'Display',
+			origin => [ 312, 60],
+			size => [ 144, 144],
+	}},
+	'Button1' => {
+		class   => 'Prima::Button',
+		module  => 'Prima::Buttons',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 9,
+			modalResult => '4',
+			text => 'Cancel',
+			origin => [ 356, 10],
+			name => 'Button1',
+			size => [ 96, 36],
+	}},
+	'Button2' => {
+		class   => 'Prima::Button',
+		module  => 'Prima::Buttons',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 8,
+			modalResult => '1',
+			text => '~OK',
+			origin => [ 256, 10],
+			name => 'Button2',
+			default => 1,
+			size => [ 96, 36],
+	}},
+	);
+}
+# <--- stop cutting --->
+;
+
+# given placement string, image size, and fitting size, 
+# returns the suggested placement coordinates
+sub image_resize_calculate_placement
+{
+	my ( $string, $x, $y, $w, $h) = @_;
+	my ( $V, $H) = $string =~ /^(\w+)\s+(\w+)$/;
+
+	my ( $X, $Y);
+	if ( $H eq 'Right') {
+		$X = $w - $x;
+	} elsif ( $H eq 'Center') {
+		$X = int(( $w - $x) / 2);
+	} else {
+		$X = 0;
+	}
+	if ( $V eq 'Top') {
+		$Y = $h - $y;
+	} elsif ( $V eq 'Center') {
+		$Y = int(( $h - $y) / 2);
+	} else {
+		$Y = 0;
+	}
+
+	return ( $X, $Y);
+
+}
+
+sub image_resize
+{
+	require Prima::VB::VBLoader;
+
+	my %form;
+	my @is = ( $image-> width, $image-> height);
+	my @cm = $image-> colormap;
+	
+	%form = Prima::VB::VBLoader::AUTOFORM_REALIZE( [ $ResizeFM-> () ], {
+		Form1        => { visible => 0, designScale => [ 9, 19 ] },
+		Width        => { 
+			value    => $is[0],
+			onChange => sub {
+				$form{Height}-> value( int( 
+					shift-> value * $is[1] / $is[0] + .5
+				)) if $form{Proportional}-> checked;
+				$form{Display}-> repaint;
+			},
+		},
+		Height       => { 
+			value    => $image-> height, 
+			onChange => sub {
+				$form{Width}-> value( int( 
+					shift-> value * $is[0] / $is[1] + .5
+				)) if $form{Proportional}-> checked;
+				$form{Display}-> repaint;
+			},
+		},
+		Stretch      => { onCheck => sub {
+			my $enable = ! shift-> checked;
+			$form{$_}-> enabled( $enable) for qw(Color Placement);
+			$form{Display}-> repaint;
+		}},
+		Color        => { 
+			onChange   => sub { $form{Display}-> repaint },
+			scalar(@cm) ? (
+			colors     => scalar(@cm),
+			onColorify => sub {
+				my ( $self, $index, $ptr) = @_;
+				$$ptr = $cm[$index];
+			}) : (),
+		},
+		Placement    => { onChange => sub { $form{Display}-> repaint }},
+		Proportional => { onCheck  => sub { 
+			$form{Width}-> notify(qw(Change)) if shift-> checked
+		}},
+		Scaling      => { 
+			items => [
+				'Nearest neighborhood',
+				$UseImageMagick ? ( qw( Quadratic Cubic Triangle 
+				Hermite Hanning Hamming Blackman Gaussian 
+				Catrom Mitchell Lanczos Bessel Sinc)) : (),
+			],
+			text  => $ini-> {Scaling},
+		},
+		Display      => { onPaint  => sub {
+			my ( $self, $canvas) = @_;
+			my @new   = ( $form{Width}-> value, $form{Height}-> value);
+			my @sz    = $self-> size;
+			my @ix    = map { $sz[$_] / $new[$_] } (0,1);
+			# actual scale to display the image
+			my @rect  = ( 0, 0, @sz);
+			my $scale = ( $ix[0] < $ix[1]) ? $ix[0] : $ix[1];
+			my @panel = map { $scale * $new[$_] } (0,1); # new image scaled down
+			@ix = map { $scale * $is[$_] } (0,1); # old image scaled down
+			for ( 0, 1) {
+				$rect[$_] = ( $sz[$_] - $panel[$_] ) / 2;
+				$rect[$_ + 2] = $rect[$_] + $panel[$_];
+			}
+			$canvas-> clear;
+
+			for ( @panel, @ix) {
+				$_ = int( $_ + .5);
+				$_++ unless $_;
+			}
+			if ( $form{Stretch}-> checked) {
+				$canvas-> stretch_image( @rect[0,1], @panel, $image);
+			} else {
+				$canvas-> backColor( $form{Color}-> value);
+				$canvas-> clear( @rect);
+
+				my @place = image_resize_calculate_placement(
+					$form{Placement}-> text,
+					@ix, @panel
+				);
+				$canvas-> clipRect( @rect);
+				$canvas-> stretch_image(
+					$place[0] + $rect[0],
+					$place[1] + $rect[1],
+					@ix, $image
+				);
+			}
+		}},
+	});
+	return message($@) unless $form{Form1};
+
+	goto DONE if $form{Form1}-> execute != mb::OK;
+	# resizing now!
+
+	my @new = ( $form{Width}-> value, $form{Height}-> value);
+	goto DONE if $new[0] == $is[0] && $new[1] == $is[1]; # do nothing
+
+	# stretch
+	if ( $form{Stretch}-> checked) {
+		if ( $form{Scaling}-> text !~ /^Nearest/) {
+			my $g = Prima::Image::Magick::prima_to_magick( $image);
+			$g-> Resize( 
+				width  => $new[0],
+				height => $new[1],
+				filter => $form{Scaling}-> text,
+			);
+			$image = $g-> Prima;
+		} else {
+			$image-> size( @new);
+		}
+		image_replace( $image);
+		goto DONE;
+	}
+
+	# no stretch
+	my @place = image_resize_calculate_placement(
+		$form{Placement}-> text,
+		@is, @new
+	);
+
+	# simple extraction of a smaller part
+	if ( $place[0] <= 0 && $place[1] <= 0) {
+		image_replace( $image-> extract( -$place[0], -$place[1], @new));
+		goto DONE;
+	} 
+
+	# extract part of image and superimpose on larger one
+	my $i = Prima::Image-> create(
+		width   => $new[0],
+		height  => $new[1],
+		palette => $image-> palette,
+		type    => $image-> type,
+		color   => $form{Color}-> value,
+	);
+	# we're guaranteed that a new image is black; change all black pixels to given color
+	$i-> map(0);
+	$i-> put_image( @place, $image);
+	image_replace( $i);
+
+DONE:
+	$form{Form1}-> destroy;
+}
+
 sub image_mirror
 {	
 	return unless loadIPA;
@@ -1921,6 +2299,7 @@ $w = Prima::Window-> create( menuItems => [
 			['E' => '~Error diffusion' => \&conversion_set], 
 			['*P' => 'O~ptimized'      => \&conversion_set], 
 		]],
+		[ 'resize' => 'Re~size' => 'Ctrl+R' => '^R' => \&image_resize, ],
 		[ 'rotate' => '~Rotate and mirror' => [
 			['Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(90) }],
 			['Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(270) }],
@@ -2068,9 +2447,10 @@ $w-> select;
 while ( 1) {
 	eval { run Prima; };
 	last unless $@;
+	my $err = $@;
 	last if mb::Abort == message_box(
 		'Fotofix fatal error',
-		$@,
+		$err,
 		mb::Abort|mb::Ignore|mb::Error,
 		{ buttons => {
 			mb::Abort => { text => '~Quit' }
