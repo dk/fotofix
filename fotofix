@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.52 2008/04/04 16:06:48 dk Exp $
+# $Id: fotofix,v 1.53 2008/04/05 11:45:10 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -71,7 +71,7 @@ my (
 	@max_window_size,
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog,
-	$slideshow, $last_file_charged,
+	$slideshow,
 );
 
 my $zoom = 1.0;
@@ -728,7 +728,7 @@ sub open_image
 		update_window_size();
 		update_window_title();
 		update_menu_status();
-		last_file_add();
+		last_file_add( $filename);
 		
 		$iv-> update_view;
 	}
@@ -759,8 +759,10 @@ sub open_new_image
 		update_menu_status();
 		
 		$iv-> update_view;
+		return 1;
 	} else {
 		message( "Cannot load image $fn:$@");
+		return;
 	}
 }
 
@@ -2211,13 +2213,10 @@ sub slideshow_set_delay
 	$ini-> {SlideDelay} = $delay;
 }}
 
-sub last_file_charge    { $last_file_charged = 1 }
-sub last_file_add       { $last_file_charged = 1; last_file_discharge() }
-sub last_file_discharge
+sub last_file_add
 {
-	return unless $last_file_charged;
-	undef $last_file_charged;
-	return unless defined $filename;
+	my $newfile = shift;
+	$newfile = undef if defined($newfile) and not -f $newfile;
 
 	my @last_files;
 	my @indexes;
@@ -2226,15 +2225,17 @@ sub last_file_discharge
 		next unless /^LastFile(\d+)$/;
 		push @indexes, $_;
 		$last_files[$1] = $ini-> {$_};
-		$exists = $1 if $ini->{$_} eq $filename;
+		$exists = $1
+			if defined($newfile) && $ini->{$_} eq $newfile;
 	}
 	if ( $exists) {
-		splice( @last_files, $exists, 1, $last_files[$exists]);
-	} else {
-		push @last_files, $filename;
+		my $d = splice( @last_files, $exists, 1);
+		unshift @last_files, $d;
+	} elsif ( defined $newfile) {
+		push @last_files, $newfile;
 	}
-	shift @last_files while 5 < @last_files;
 	@last_files = grep { defined } @last_files;
+	shift @last_files while 5 < @last_files;
 
 	my $x = $menu-> get_items('lastfile');
 	if ( $x) {
@@ -2246,7 +2247,11 @@ sub last_file_discharge
 	my @set;
 	for my $file ( @last_files) {
 		$ini-> {'LastFile' . $idx } = $file;
-		push @set, [ $file, "~$idx", $idx, sub { open_new_image($file) }];
+		push @set, [ "~$idx $file", sub { 
+			if ( open_new_image($file)) {
+				last_file_add($filename);
+			}
+		}];
 		$idx++;
 	}
 	@set = ['lastfileset'] unless @set;
@@ -2473,7 +2478,6 @@ update_menu_tags();
 update_window_title();
 update_window_size();
 if ( @ARGV) {
-	last_file_charge;
 	if ( -f $ARGV[0]) {
 		open_new_image( $ARGV[0]);
 	} elsif ( -d $ARGV[0]) {
@@ -2482,8 +2486,8 @@ if ( @ARGV) {
 	} else {
 		message("$ARGV[0] cannot be opened");
 	}
-	last_file_discharge;
 }
+last_file_add( $filename);
 
 $w-> show;
 $w-> select;
