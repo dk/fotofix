@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.53 2008/04/05 11:45:10 dk Exp $
+# $Id: fotofix,v 1.54 2008/04/24 18:48:57 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -71,7 +71,7 @@ my (
 	@max_window_size,
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog,
-	$slideshow,
+	$slideshow, $animation, $codecs,
 );
 
 my $zoom = 1.0;
@@ -86,6 +86,7 @@ my %image_format_category = (
 	im::GrayScale                => '%d',
 	im::GrayScale|im::RealNumber => '%g',
 );
+
 
 {
 	$_=<<DD;
@@ -181,6 +182,9 @@ sub image_replace
 	$region = undef;
 
 	magnify(0);
+
+	# leftover animation frame
+	animation_close();
 
 	my $eq =
 		$image &&
@@ -472,7 +476,7 @@ sub update_menu_status
 {
 	my $x = $image ? 1 : 0;
 	$menu-> enabled( $_ , $x) for qw(
-		saveas next prev first last reopen
+		next prev first last reopen
 		convert copy copybits view rotate effects
 		tag slideshow resize
 	);
@@ -484,6 +488,9 @@ sub update_menu_status
 
 	$x = defined $filename;
 	$menu-> enabled( $_, $x) for qw(save delete);
+
+	$menu-> enabled('save',   $animation ? 0 : 1);
+	$menu-> enabled('saveas', $animation ? 0 : $image);
 }
 
 sub try_max_window_size
@@ -702,6 +709,17 @@ sub fullscreen
 	update_window_size();
 }
 
+sub close_image
+{
+	undef $region;
+	undef $image;
+	undef $filename;
+	undef $filecodec;
+	animation_close();
+	$modified = 0;
+	%neighbour_files_cache = ();
+}
+
 sub open_image
 {
 	return if $modified and not can_close_image();
@@ -711,27 +729,35 @@ sub open_image
 		
 	$open_dialog-> directory($ini-> {Path});
 
-	my $i    = $open_dialog-> load( progressViewer => $iv);
-	if ( $i) {
-		undef $region;
-		$filename = $open_dialog-> fileName;
-		$modified = 0;
-		%neighbour_files_cache = ();
-		$filecodec = $i-> {extras}->{codecID};
-		%tags = () if ( $ini-> {Path} || '') ne $open_dialog-> directory;
-		$ini-> {Path} = $open_dialog-> directory;
+	my $i = $open_dialog-> load( 
+		progressViewer => $iv, 
+		wantFrames     => 1,
+		loadExtras     => 1,
+	);
+	return unless $i;
 
-		$zoom = 1.0;
-		$image = $i;
-		image_reset_display_buffer();
+	close_image();
 
-		update_window_size();
-		update_window_title();
-		update_menu_status();
-		last_file_add( $filename);
-		
-		$iv-> update_view;
-	}
+	$filename = $open_dialog-> fileName;
+	$filecodec = $i-> {extras}->{codecID};
+	%tags = () if ( $ini-> {Path} || '') ne $open_dialog-> directory;
+	$ini-> {Path} = $open_dialog-> directory;
+	$zoom = 1.0;
+
+	return 1 if
+		$open_dialog-> {frameIndex} == 0 and
+		image_is_animation($i) and
+		animation_load($filename);
+	
+	$image = $i;
+	image_reset_display_buffer();
+
+	update_window_size();
+	update_window_title();
+	update_menu_status();
+	last_file_add( $filename);
+	
+	$iv-> update_view;
 }
 
 sub open_new_image
@@ -740,30 +766,33 @@ sub open_new_image
 	my $i = Prima::Image-> new;
 	
 	$iv-> watch_load_progress( $i);
-	my $ok = $i-> load($fn, loadExtras => 1);
+	my $ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
 	$iv-> unwatch_load_progress;
 
-	if ($ok) {
-		undef $region;
-		$filename = $fn;
-		$modified = 0;
-		%neighbour_files_cache = ();
-		$filecodec = $i-> {extras}->{codecID};
+	# failed
+	message( "Cannot load image $fn:$@"), return 0 unless $ok;
 
-		$zoom = 1.0;
-		$image = $i;
-		image_reset_display_buffer();
+	# succeeded
+	close_image();
+	$filename = $fn;
+	$filecodec = $i-> {extras}->{codecID};
+	$zoom = 1.0;
 
-		update_window_size();
-		update_window_title();
-		update_menu_status();
-		
-		$iv-> update_view;
-		return 1;
-	} else {
-		message( "Cannot load image $fn:$@");
-		return;
-	}
+	return 1 if
+		image_is_animation($i) and
+		animation_load($filename);
+
+	$image = $i;
+	image_reset_display_buffer();
+
+	update_window_size();
+	update_window_title();
+	update_menu_status();
+	
+	$iv-> update_view;
+
+
+	return 1;
 }
 
 sub reopen_image
@@ -1505,6 +1534,78 @@ sub image_rotate
 	image_replace($i);
 }
 
+sub image_is_animation
+{
+	my $i = shift;
+	return 0 unless                    # more than 1 frame?
+		$i-> {extras} && 
+		defined($i-> {extras}->{codecID}) &&
+		$i-> {extras}->{frames} &&
+		$i-> {extras}->{frames} > 1;
+	$codecs ||= Prima::Image-> codecs;
+	my $c = $codecs-> [ $i-> {extras}-> {codecID} ];
+	return 0 unless                    # is it really libungif codec?
+		$c &&
+		$c-> {name} eq 'GIFLIB';
+	eval { require Prima::Image::AnimateGIF; };
+	message($@), return 0 if $@;
+
+	return 1;
+}
+
+sub animation_load
+{
+	my $filename = shift;
+
+	my $player = Prima::Image::AnimateGIF-> load($filename);
+	message("Cannot load $filename as animation:$@"), return unless $player;
+
+	my $info = $player-> next;
+	return unless $info;
+
+	my $i = $player-> image;
+	return unless $i;
+
+	# commit
+	$animation-> {timer} = Prima::Timer-> new(
+		timeout => $info-> {delay} * 1000,
+		onTick  => sub {
+			if ( $animation && $animation-> {player}) {
+				$info = $animation-> {player}-> next;
+				if ( $info) {
+					$_[0]-> timeout( $info-> {delay} * 1000);
+					$image = $player-> image;
+					image_reset_display_buffer();
+					$magnify-> repaint if $magnify;
+				} else {
+					$_[0]-> stop;
+				}
+			}
+		},
+	);
+
+	$image = $i;
+	image_reset_display_buffer();
+
+	$animation-> {player} = $player;
+	$animation-> {timer}-> start;
+
+	update_window_size();
+	update_window_title();
+	update_menu_status();
+	
+	$iv-> update_view;
+
+	return 1;
+}
+
+sub animation_close
+{
+	return unless $animation;
+	$animation-> {timer}-> destroy if $animation-> {timer};
+	undef $animation;
+	update_menu_status();
+}
 
 my $ResizeFM = 
 # This is resize.fm included as is in its entirety. If you want to edit it
