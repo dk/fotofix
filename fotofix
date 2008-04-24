@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.54 2008/04/24 18:48:57 dk Exp $
+# $Id: fotofix,v 1.55 2008/04/24 19:56:44 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -182,8 +182,6 @@ sub image_replace
 	$region = undef;
 
 	magnify(0);
-
-	# leftover animation frame
 	animation_close();
 
 	my $eq =
@@ -423,6 +421,12 @@ sub update_window_title
 		}
 	}
 
+	if ( $animation) {
+		$str .= ' ' .
+			($animation->{player}->current + 1) . '/' .
+			$animation->{player}->total . ' ';
+	}
+
 	my $is_modified = $modified ? '* ' : '';
 	my $tag_info    = 
 		(( scalar keys %tags ) ? 
@@ -489,8 +493,9 @@ sub update_menu_status
 	$x = defined $filename;
 	$menu-> enabled( $_, $x) for qw(save delete);
 
-	$menu-> enabled('save',   $animation ? 0 : 1);
-	$menu-> enabled('saveas', $animation ? 0 : $image);
+	$menu-> enabled('save',      $animation ? 0 : 1);
+	$menu-> enabled('saveas',    $animation ? 0 : $image);
+	$menu-> enabled('animation', $animation ? 1 : 0);
 }
 
 sub try_max_window_size
@@ -1577,6 +1582,7 @@ sub animation_load
 					$image = $player-> image;
 					image_reset_display_buffer();
 					$magnify-> repaint if $magnify;
+					update_window_title();
 				} else {
 					$_[0]-> stop;
 				}
@@ -1602,10 +1608,37 @@ sub animation_load
 sub animation_close
 {
 	return unless $animation;
+	## uncomment if you happen to erase your animation gifs too often
+	# $filename = sprintf "frame%d-%s",
+	# 	$animation-> {player}-> current,
+	# 	$filename
+	# 	if defined $filename;
 	$animation-> {timer}-> destroy if $animation-> {timer};
 	undef $animation;
 	update_menu_status();
+	return 1;
 }
+
+sub animation_toggle
+{
+	return unless $animation;
+	my $t = $animation-> {timer};
+	$t-> get_active ? $t-> stop : $t-> start;
+}
+
+sub animation_next
+{
+	return unless $animation;
+	$animation-> {timer}-> notify('Tick');
+}
+
+sub animation_rewind
+{
+	return unless $animation;
+	$animation-> {player}-> reset;
+	animation_next;
+}
+
 
 my $ResizeFM = 
 # This is resize.fm included as is in its entirety. If you want to edit it
@@ -2466,7 +2499,22 @@ $w = Prima::Window-> create( menuItems => [
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
 	['view' => '~View' => [
-		['~Normal ( 100%)' => 'Z' => 'Z' => sub{zoom_set(1.0)}],
+		['~Zoom' => [
+			['~Normal ( 100%)' => 'Z' => 'Z' => sub{zoom_set(1.0)}],
+			[],
+			['25%' =>   sub{zoom_set 0.25}],
+			['~50%' =>  sub{zoom_set 0.5 }],
+			['~75%' =>  sub{zoom_set 0.75}],
+			['~150%' => sub{zoom_set 1.5 }],
+			['~200%' => sub{zoom_set 2   }],
+			['~300%' => sub{zoom_set 3   }],
+			['~400%' => sub{zoom_set 4   }],
+			['~600%' => sub{zoom_set 6   }],
+			['16~00%' =>sub{zoom_set 16  }],
+			[],
+			['~Increase' => '+' => '+' => sub { zoom_scale 1.1 }],
+			['~Decrease' => '-' => '-' => sub { zoom_scale 0.9 }],
+		]],
 		['F~ull screen' => 'Enter' => kb::Enter => sub {
 			fullscreen( not $fullscreen);
 		}],
@@ -2477,11 +2525,9 @@ $w = Prima::Window-> create( menuItems => [
 		'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
 		],[ ( $ini->{ImageFit} ? '*' : '') .
 		'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
-		],[ ( $ini->{AutoPosition} ? '*' : '') .
-		'AutoPosition' => 'Change window ~position when resizing' => sub {
-			$ini->{$_[1]} = $menu-> toggle( $_[1]);
-		} ],
-		[ '~Scaling' => [
+		],
+		[],
+		[ 'S~caling' => [
 			$UseBufferedZoom ? (
 			['Scaling0'         => '~System (unbuffered)'  => \&scaling_set ],
 			['Scaling1'         => '~Nearest neighborhood' => \&scaling_set ],
@@ -2499,23 +2545,18 @@ $w = Prima::Window-> create( menuItems => [
 			['Install Prima::Image::Magick for more', sub{}]
 			)
 		]],
-		['Minimi~ze' => 'Ctrl+Z' => '^Z' => 'minimize' ],
-		[],
-		['25%' =>   sub{zoom_set 0.25}],
-		['~50%' =>  sub{zoom_set 0.5 }],
-		['~75%' =>  sub{zoom_set 0.75}],
-		['~150%' => sub{zoom_set 1.5 }],
-		['~200%' => sub{zoom_set 2   }],
-		['~300%' => sub{zoom_set 3   }],
-		['~400%' => sub{zoom_set 4   }],
-		['~600%' => sub{zoom_set 6   }],
-		['16~00%' =>sub{zoom_set 16  }],
-		[],
-		['~Increase' => '+' => '+' => sub { zoom_scale 1.1 }],
-		['~Decrease' => '-' => '-' => sub { zoom_scale 0.9 }],
-		[],
-		['slideshow' => 'Begin/end ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
-		[ 'Set slideshow delay...' => \&slideshow_set_delay ],
+		[ ( $ini->{AutoPosition} ? '*' : '') .
+		'AutoPosition' => 'Change window ~position when resizing' => sub {
+			$ini->{$_[1]} = $menu-> toggle( $_[1]);
+		} ],
+		['~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
+		['slideshow' => 'Start/stop ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
+		[ 'Set slideshow ~delay...' => \&slideshow_set_delay ],
+		['animation' => '~Animation' => [
+			[ '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
+			[  'Re~wind'     =>                     \&animation_rewind ],
+			[  '~Next frame' => 'A'      => 'a'  => \&animation_next ],
+		]],
 	]],
 	[],
 	['~Help' => [
