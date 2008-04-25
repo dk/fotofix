@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.59 2008/04/25 20:45:40 dk Exp $
+# $Id: fotofix,v 1.60 2008/04/25 20:52:16 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -2702,6 +2702,7 @@ $w = Prima::Window-> create( menuItems => [
 		],[ ( $ini->{ImageFit} ? '*' : '') .
 		'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
 		],
+		['~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
 		[],
 		[ 'S~caling' => [
 			$UseBufferedZoom ? (
@@ -2721,7 +2722,6 @@ $w = Prima::Window-> create( menuItems => [
 			['Install Prima::Image::Magick for more', sub{}]
 			)
 		]],
-		['~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
 		['animation' => '~Animation' => [
 			[ '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
 			[  'Re~wind'     =>                     \&animation_rewind ],
@@ -2735,7 +2735,6 @@ $w = Prima::Window-> create( menuItems => [
 			[ 'tx_blend', '~Blend effect' => \&transition_set ],
 			[ 'tx_block', 'B~lock effect' => \&transition_set ],
 		]],
-		[],
 		[ ( $ini->{AutoPosition} ? '*' : '') .
 		'AutoPosition' => 'Change window ~position when resizing' => \&menuitem_toggle ],
 		[ ( $ini->{ShowPartial} ? '*' : '') .
