@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.60 2008/04/25 20:52:16 dk Exp $
+# $Id: fotofix,v 1.61 2008/04/25 21:25:07 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -879,7 +879,7 @@ sub open_new_image
 		$iv-> begin_paint; # and onPaint won't be called by the system
 
 		# create blend images
-		my ( $blend1, $blend2, $blend3);
+		my ( $blend1, $blend2);
 		my @r = $iv-> client_to_screen( 0, 0, $iv-> size);
 		$blend1 = $::application-> get_image( @r);
 		$image = $i;
@@ -2557,12 +2557,11 @@ sub transition_set
 {
 	my ( $self, $tx) = @_;
 	$tx =~ s/tx_//;
+	if ( $tx eq 'blend') {
+		return unless loadIPA('Blending transition');
+	}
 	$menu-> uncheck( 'tx_' . $ini-> {Transition});
 	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
-	if ( $tx eq 'blend') {
-		transition_set("tx_block")
-			unless loadIPA('Blending transition');
-	}
 }
 
 $ini = Prima::IniFile-> create( 
