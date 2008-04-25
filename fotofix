@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.55 2008/04/24 19:56:44 dk Exp $
+# $Id: fotofix,v 1.56 2008/04/25 06:47:03 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -63,7 +63,7 @@ my (
 	$w, $menu, $iv, $image, 
 	$magnify, $magnify_zoom,
 	$ini,
-	$want_prebuffered_zoom, $use_prebuffered_zoom,
+	$want_prebuffered_zoom, $use_prebuffered_zoom, $image_is_loading,
 	%neighbour_files_cache,
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
@@ -203,6 +203,8 @@ sub can_use_prebuffered_zoom
 	return 0 if $ini-> {Scaling} eq '0';
 	
 	return 0 if $zoom == 1.0; # duh
+
+	return 0 if $image_is_loading; # no point in replotting expensive scaling on each image read
 
 	return 1 if $ini-> {Scaling} ne '1';
 
@@ -386,7 +388,7 @@ sub update_window_title
 	my $img = $image;
 	my $str;
 	if ( $img) {
-		$str = $filename;
+		$str = defined($filename) ? $filename : '.Untitled';
 		$str =~ m/([^\\\/]*)$/;
 		my $f = $1;
 
@@ -729,17 +731,30 @@ sub open_image
 {
 	return if $modified and not can_close_image();
 
-	$open_dialog = Prima::ImageOpenDialog-> create()
-		unless $open_dialog;
+	my $save = $image;
+
+	$open_dialog = Prima::ImageOpenDialog-> create(
+		onHeaderReady => sub {
+			$image = $_[1];
+			update_window_size();
+		},
+	) unless $open_dialog;
 		
 	$open_dialog-> directory($ini-> {Path});
 
+	$image_is_loading++;
 	my $i = $open_dialog-> load( 
 		progressViewer => $iv, 
 		wantFrames     => 1,
 		loadExtras     => 1,
 	);
-	return unless $i;
+	$image_is_loading--;
+	unless ($i) {
+		if (( $image || 0) != ( $save || 0)) {
+			$image = $save;
+			update_window_size();
+		}
+	}
 
 	close_image();
 
@@ -756,7 +771,6 @@ sub open_image
 	
 	$image = $i;
 	image_reset_display_buffer();
-
 	update_window_size();
 	update_window_title();
 	update_menu_status();
@@ -768,14 +782,30 @@ sub open_image
 sub open_new_image
 {
 	my $fn = shift;
+
+	my $save = $image;
 	my $i = Prima::Image-> new;
-	
+
+	$image_is_loading++;
 	$iv-> watch_load_progress( $i);
+	my $id = $i-> add_notification( 'HeaderReady', sub {
+		$image = $i;
+		update_window_size;
+	});
 	my $ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
+	$i-> remove_notification( $id);
 	$iv-> unwatch_load_progress;
+	$image_is_loading--;
 
 	# failed
-	message( "Cannot load image $fn:$@"), return 0 unless $ok;
+	unless ($i) {
+		if (( $image || 0) != ( $save || 0)) {
+			$image = $save;
+			update_window_size();
+		}
+		message( "Cannot load image $fn:$@");
+		return 0;
+	}
 
 	# succeeded
 	close_image();
@@ -795,8 +825,6 @@ sub open_new_image
 	update_menu_status();
 	
 	$iv-> update_view;
-
-
 	return 1;
 }
 
