@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.56 2008/04/25 06:47:03 dk Exp $
+# $Id: fotofix,v 1.57 2008/04/25 17:37:02 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -790,6 +790,7 @@ sub open_new_image
 	$iv-> watch_load_progress( $i);
 	my $id = $i-> add_notification( 'HeaderReady', sub {
 		$image = $i;
+		image_reset_display_buffer();
 		update_window_size;
 	});
 	my $ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
@@ -1542,9 +1543,36 @@ sub conversion_set
 
 sub image_convert
 {
+	my $type = shift;
+
+	my %set;
+	unless ( $type) {
+		my $now_colors = 
+			( $image-> get_bpp > 8) ? 256 : 
+			scalar $image-> colormap;
+		my $colors = input_box(
+			'Convert image',
+			'Reduce colors to (2-256):',
+			$now_colors, mb::OkCancel
+		);
+		return unless defined $colors and length $colors;
+		message("Number required"), redo unless $colors =~ /^\d+(\.\d+)?$/;
+		message("Value between 2 and 256"), redo unless $colors >= 2 and $colors <= 256;
+		return if $colors == $now_colors;
+		$set{palette} = $colors;
+		if ( $colors > 16) {
+			$type = 8;
+		} elsif ( $colors > 2) {
+			$type = 4;
+		} else {
+			$type = 1;
+		}
+	}
+
 	$image-> set(
 		conversion => $conversion,
-		type       => shift,
+		type       => $type,
+		%set,
 	);
 	image_replace( $image);
 }
@@ -2226,6 +2254,13 @@ sub edit_palette
 	my @ext = ( 16, 16);
 	my ( $cd, $curr_index, @colormap, $old_image, $touch );
 	my @current = @colormap = $image-> colormap;
+	while ( $ext[0] * $ext[1] > @colormap) {
+		$ext[1]--;
+		if ( $ext[0] * $ext[1] < @colormap) {
+			$ext[1]++;
+			last;
+		}
+	}
 
 	my $d = Prima::Dialog-> new( 
 		text => 'Edit palette',
@@ -2240,6 +2275,8 @@ sub edit_palette
 		constantCellHeight	=> 24,
 		multiSelect 		=> 0,
 		cells			=> [([(undef) x $ext[0]]) x $ext[1]],
+		drawHGrid               => 0,
+		drawVGrid               => 0,
 		onDrawCell => sub {
 			my ( $self, $canvas, 
 				$col, $row, $indent, 
@@ -2254,18 +2291,23 @@ sub edit_palette
 				$current[$index]
 			);
 			$canvas-> clear($sx1, $sy1, $sx2, $sy2);
-			$canvas-> rect_focus( $sx1, $sy1, $sx2, $sy2) if $focused;
+			return if $index >= @colormap;
+			$canvas-> rectangle( $cx1-1, $cy1-1, $cx2, $cy2);
+			$canvas-> rect_focus( $sx1, $sy1, $sx2-1, $sy2-1) if $focused;
 		},
 		onSelectCell => sub {
 			my ( $self, $col, $row) = @_;
 			my $index = $row * $ext[0] + $col;
+			return if $index >= @colormap;
 			my $color = sprintf("%06x", $current[$index]);
 			$d-> text("Edit palette, index #$index $color");
 		},
 		onClick => sub {
 			my ($self) = @_;
 			my ( $col, $row) = $self-> focusedCell;
-			$curr_index = $row * $ext[0] + $col;
+			my $index = $row * $ext[0] + $col;
+			return if $index >= @colormap;
+			$curr_index = $index;
 			$cd-> value( $current[$curr_index]);
 			if ( $cd-> execute == mb::OK) {
 				$current[$curr_index] = $cd-> value;
@@ -2505,6 +2547,7 @@ $w = Prima::Window-> create( menuItems => [
 			['~256 colors' => sub {image_convert(im::bpp8)}],
 			['~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
 			['~RGB'        => sub {image_convert(im::RGB)}],
+			['~Custom...'  => sub {image_convert(0)}],
 			[],
 			['N' => '~No halftoning'   => \&conversion_set],
 			['O' => '~Ordered'         => \&conversion_set],
