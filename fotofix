@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.58 2008/04/25 20:35:08 dk Exp $
+# $Id: fotofix,v 1.59 2008/04/25 20:45:40 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -809,6 +809,10 @@ sub transition_block
 sub transition_blend
 {
 	my ( $blend1, $blend2) = @_;
+
+	return if 
+		$blend1-> type != im::RGB or 
+		$blend2-> type != im::RGB;
 	$iv-> put_image( 0, 0, 
 		combine_channels(
 			[$blend2,$blend1],
