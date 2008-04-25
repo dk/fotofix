@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.57 2008/04/25 17:37:02 dk Exp $
+# $Id: fotofix,v 1.58 2008/04/25 20:35:08 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -87,7 +87,6 @@ my %image_format_category = (
 	im::GrayScale|im::RealNumber => '%g',
 );
 
-
 {
 	$_=<<DD;
 z0z0e08d0Fa0Fc0302Cc0F08Fc0F1DFc0F3CFc0F7EF08a0F7EFc07EaF04a07CaFa01069BD041
@@ -135,7 +134,8 @@ sub loadIPA
 	return 1 if $IPALoaded;
 
 	unless ( $UseIPA) {
-		message('This function requires IPA module installed');
+		my $func = shift || 'This function';
+		message("$func requires IPA module installed");
 		return 0;
 	}
 
@@ -756,6 +756,7 @@ sub open_image
 		}
 	}
 
+	undef $save;
 	close_image();
 
 	$filename = $open_dialog-> fileName;
@@ -779,24 +780,73 @@ sub open_image
 	$iv-> update_view;
 }
 
+sub transition_block
+{
+	my ( $blend1, $blend2) = @_;
+
+	my $s = 8;
+	my ( $X, $Y) = ( int( $blend1-> width / $s), int( $blend2-> height / $s));
+	my $n = $X * $Y;
+	my @p = ((1) x $n);
+	my $left = $n;
+
+	while ( $left > 0) {
+		my $i = int rand($n);
+		next unless $p[$i];
+		$p[$i] = undef;
+		$left--;
+		
+		my ( $x, $y) = map { int($_) * $s} ( $i / $Y, $i % $Y);
+		$iv-> put_image_indirect(
+			$blend2,
+			$x, $y, $x, $y,
+			$s, $s, $s, $s,
+			rop::CopyPut
+		);
+	}
+}
+
+sub transition_blend
+{
+	my ( $blend1, $blend2) = @_;
+	$iv-> put_image( 0, 0, 
+		combine_channels(
+			[$blend2,$blend1],
+			'alpha' . ( $_ * 16 - 1)
+	)) for 1..15;
+}
+
+sub transition_images
+{
+	return transition_block( @_) if $ini-> {Transition} eq 'block';
+	return transition_blend( @_) if $ini-> {Transition} eq 'blend';
+	return                       if $ini-> {Transition} eq 'none';
+	die "unknown transition: $ini->{Transition}\n";
+}
+
 sub open_new_image
 {
-	my $fn = shift;
+	my ( $fn, %opt) = @_;
 
 	my $save = $image;
 	my $i = Prima::Image-> new;
+	my $ok;
 
-	$image_is_loading++;
-	$iv-> watch_load_progress( $i);
-	my $id = $i-> add_notification( 'HeaderReady', sub {
-		$image = $i;
-		image_reset_display_buffer();
-		update_window_size;
-	});
-	my $ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
-	$i-> remove_notification( $id);
-	$iv-> unwatch_load_progress;
-	$image_is_loading--;
+	if ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
+		$image_is_loading++;
+		$iv-> watch_load_progress( $i);
+		my $id = $i-> add_notification( 'HeaderReady', sub {
+			$image = $i;
+			image_reset_display_buffer();
+			update_window_size;
+		});
+		$ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
+		$i-> remove_notification( $id);
+		$iv-> unwatch_load_progress;
+		$image_is_loading--;
+	} else {
+		$ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
+	}
 
 	# failed
 	unless ($i) {
@@ -809,10 +859,41 @@ sub open_new_image
 	}
 
 	# succeeded
+	my $there_was_image = $save ? 1 : 0;
+	undef $save;
 	close_image();
 	$filename = $fn;
 	$filecodec = $i-> {extras}->{codecID};
 	$zoom = 1.0;
+
+	if (
+		$opt{slideshow} and
+		($ini-> {Transition} ne 'none') and
+		($fullscreen || $ini-> {WindowFit} || $ini-> {AutoBestFit}) and
+		$there_was_image
+	) {
+		$iv-> begin_paint; # and onPaint won't be called by the system
+
+		# create blend images
+		my ( $blend1, $blend2, $blend3);
+		my @r = $iv-> client_to_screen( 0, 0, $iv-> size);
+		$blend1 = $::application-> get_image( @r);
+		$image = $i;
+		image_reset_display_buffer();
+		update_window_size();
+		$blend2 = $blend1-> dup;
+		$blend2-> begin_paint;
+		$blend2-> $_( $iv-> $_) for qw(color backColor);
+		$iv-> on_paint( $blend2);
+		$blend2-> end_paint;
+
+		# do the transition
+		$w-> SlideshowTimer-> stop if $w-> SlideshowTimer;
+		transition_images( $blend1, $blend2);
+		$w-> SlideshowTimer-> start if $w-> SlideshowTimer;
+
+		$iv-> end_paint;
+	}
 
 	return 1 if
 		image_is_animation($i) and
@@ -2377,7 +2458,7 @@ sub slideshow_start
 				unless defined $index;
 			return slideshow_stop() if $index == $#files;
 			$index++;
-			open_new_image( "$basedir/$files[$index]");
+			open_new_image( "$basedir/$files[$index]", slideshow => 1);
 		},
 	)-> start;
 		
@@ -2463,6 +2544,23 @@ sub last_file_add
 	$menu-> insert( \@set, 'lastfile', 0);
 }
 
+sub menuitem_toggle
+{ 
+	$ini->{$_[1]} = $menu-> toggle( $_[1])
+};
+
+sub transition_set
+{
+	my ( $self, $tx) = @_;
+	$tx =~ s/tx_//;
+	$menu-> uncheck( 'tx_' . $ini-> {Transition});
+	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
+	if ( $tx eq 'blend') {
+		transition_set("tx_block")
+			unless loadIPA('Blending transition');
+	}
+}
+
 $ini = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
@@ -2474,9 +2572,12 @@ $ini = Prima::IniFile-> create(
 				ChdirPath    => '.',
 				SlideDelay   => 3,
 				AutoPosition => 0,
+				ShowPartial  => 1,
+				Transition   => 'block',
 			],
 		],
 )-> section('Main');
+			
 
 $w = Prima::Window-> create( menuItems => [
 	[ 'file' => '~File' => [
@@ -2616,18 +2717,25 @@ $w = Prima::Window-> create( menuItems => [
 			['Install Prima::Image::Magick for more', sub{}]
 			)
 		]],
-		[ ( $ini->{AutoPosition} ? '*' : '') .
-		'AutoPosition' => 'Change window ~position when resizing' => sub {
-			$ini->{$_[1]} = $menu-> toggle( $_[1]);
-		} ],
 		['~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
-		['slideshow' => 'Start/stop ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
-		[ 'Set slideshow ~delay...' => \&slideshow_set_delay ],
 		['animation' => '~Animation' => [
 			[ '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
 			[  'Re~wind'     =>                     \&animation_rewind ],
 			[  '~Next frame' => 'A'      => 'a'  => \&animation_next ],
 		]],
+		['~Slideshow' => [
+			['slideshow' => 'Start/stop ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
+			[ 'Set slideshow ~delay...' => \&slideshow_set_delay ],
+			[],
+			[ 'tx_none', '~No effects'    => \&transition_set ],
+			[ 'tx_blend', '~Blend effect' => \&transition_set ],
+			[ 'tx_block', 'B~lock effect' => \&transition_set ],
+		]],
+		[],
+		[ ( $ini->{AutoPosition} ? '*' : '') .
+		'AutoPosition' => 'Change window ~position when resizing' => \&menuitem_toggle ],
+		[ ( $ini->{ShowPartial} ? '*' : '') .
+		'ShowPartial', 'Show loading ~progress' => \&menuitem_toggle ],
 	]],
 	[],
 	['~Help' => [
@@ -2685,6 +2793,9 @@ Prima::EventHook::install(
 $ini-> {Scaling} = $UseBufferedZoom 
 	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
 scaling_set( $w, 'Scaling' . $ini-> {Scaling});
+
+$ini-> {Transition} = 'block' if $ini-> {Transition} eq 'blend' and not $UseIPA;
+transition_set( $w, 'tx_' . $ini-> {Transition});
 
 update_menu_status();
 update_menu_tags();
