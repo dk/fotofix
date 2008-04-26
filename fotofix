@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.61 2008/04/25 21:25:07 dk Exp $
+# $Id: fotofix,v 1.62 2008/04/26 10:55:23 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -716,70 +716,6 @@ sub fullscreen
 	update_window_size();
 }
 
-sub close_image
-{
-	undef $region;
-	undef $image;
-	undef $filename;
-	undef $filecodec;
-	animation_close();
-	$modified = 0;
-	%neighbour_files_cache = ();
-}
-
-sub open_image
-{
-	return if $modified and not can_close_image();
-
-	my $save = $image;
-
-	$open_dialog = Prima::ImageOpenDialog-> create(
-		onHeaderReady => sub {
-			$image = $_[1];
-			update_window_size();
-		},
-	) unless $open_dialog;
-		
-	$open_dialog-> directory($ini-> {Path});
-
-	$image_is_loading++;
-	my $i = $open_dialog-> load( 
-		progressViewer => $iv, 
-		wantFrames     => 1,
-		loadExtras     => 1,
-	);
-	$image_is_loading--;
-	unless ($i) {
-		if (( $image || 0) != ( $save || 0)) {
-			$image = $save;
-			update_window_size();
-		}
-	}
-
-	undef $save;
-	close_image();
-
-	$filename = $open_dialog-> fileName;
-	$filecodec = $i-> {extras}->{codecID};
-	%tags = () if ( $ini-> {Path} || '') ne $open_dialog-> directory;
-	$ini-> {Path} = $open_dialog-> directory;
-	$zoom = 1.0;
-
-	return 1 if
-		$open_dialog-> {frameIndex} == 0 and
-		image_is_animation($i) and
-		animation_load($filename);
-	
-	$image = $i;
-	image_reset_display_buffer();
-	update_window_size();
-	update_window_title();
-	update_menu_status();
-	last_file_add( $filename);
-	
-	$iv-> update_view;
-}
-
 sub transition_block
 {
 	my ( $blend1, $blend2) = @_;
@@ -826,6 +762,71 @@ sub transition_images
 	return transition_blend( @_) if $ini-> {Transition} eq 'blend';
 	return                       if $ini-> {Transition} eq 'none';
 	die "unknown transition: $ini->{Transition}\n";
+}
+
+sub close_image
+{
+	undef $region;
+	undef $image;
+	undef $filename;
+	undef $filecodec;
+	animation_close();
+	$modified = 0;
+	%neighbour_files_cache = ();
+}
+
+sub open_image
+{
+	return if $modified and not can_close_image();
+
+	my $save = $image;
+
+	$open_dialog = Prima::ImageOpenDialog-> create(
+		onHeaderReady => sub {
+			$image = $_[1];
+			update_window_size();
+		},
+	) unless $open_dialog;
+		
+	$open_dialog-> directory($ini-> {Path});
+
+	$image_is_loading++;
+	my $i = $open_dialog-> load( 
+		progressViewer => $iv, 
+		wantFrames     => 1,
+		loadExtras     => 1,
+	);
+	$image_is_loading--;
+	unless ($i) {
+		if (( $image || 0) != ( $save || 0)) {
+			$image = $save;
+			update_window_size();
+		}
+		return;
+	}
+
+	undef $save;
+	close_image();
+
+	$filename = $open_dialog-> fileName;
+	$filecodec = $i-> {extras}->{codecID};
+	%tags = () if ( $ini-> {Path} || '') ne $open_dialog-> directory;
+	$ini-> {Path} = $open_dialog-> directory;
+	$zoom = 1.0;
+
+	return 1 if
+		$open_dialog-> {frameIndex} == 0 and
+		image_is_animation($i) and
+		animation_load($filename);
+	
+	$image = $i;
+	image_reset_display_buffer();
+	update_window_size();
+	update_window_title();
+	update_menu_status();
+	last_file_add( $filename);
+	
+	$iv-> update_view;
 }
 
 sub open_new_image
