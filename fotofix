@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.62 2008/04/26 10:55:23 dk Exp $
+# $Id: fotofix,v 1.63 2008/05/03 18:23:06 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -21,7 +21,7 @@ V
 
 use strict;
 use warnings;
-use Prima 1.23 qw(
+use Prima 1.26 qw(
 	Application ImageViewer StdDlg
 	MsgBox IniFile EventHook ComboBox
 );
