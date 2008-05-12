@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.64 2008/05/10 20:35:50 dk Exp $
+# $Id: fotofix,v 1.65 2008/05/12 17:03:56 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -854,7 +854,7 @@ sub open_new_image
 	}
 
 	# failed
-	unless ($i) {
+	unless ($ok) {
 		if (( $image || 0) != ( $save || 0)) {
 			$image = $save;
 			update_window_size();
