@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.65 2008/05/12 17:03:56 dk Exp $
+# $Id: fotofix,v 1.66 2008/06/04 10:22:32 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -693,6 +693,8 @@ sub fullscreen
 	my $f = $_[0] ? 1 : 0;
 	return if $fullscreen == $f;
 	$fullscreen = $f;
+	magnify(0);
+
 	$fullscreen_x11 ?
 		&fullscreen_x11 : 
 		&fullscreen_win32;
@@ -2249,6 +2251,7 @@ sub magnify
 			size		=> \@MagnifyingGlassSize,
 			syncPaint	=> 1,
 			buffered	=> 1,
+			clipOwner       => not($fullscreen),
 			onMouseWheel	=> \&iv_mousewheel,
 			onMouseMove	=> sub { magnify(0) }, # if capture was superseded by WM
 			onPaint		=> sub {
