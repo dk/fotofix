@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.66 2008/06/04 10:22:32 dk Exp $
+# $Id: fotofix,v 1.67 2008/06/12 21:00:12 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1017,6 +1017,11 @@ sub open_next_image
 	}
 
 	open_new_image( "$basedir/$files[$index]");
+
+	if ( $slideshow) {
+		$w-> SlideshowTimer-> stop;
+		$w-> SlideshowTimer-> start;
+	}
 }
 
 sub save_image
