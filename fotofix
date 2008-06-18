@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.67 2008/06/12 21:00:12 dk Exp $
+# $Id: fotofix,v 1.68 2008/06/18 19:15:52 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -58,7 +58,6 @@ my $RedEyesHueDiff = 1.0;
 
 my @MagnifyingGlassSize   = (302,202);
 
-
 my ( 
 	$w, $menu, $iv, $image, 
 	$magnify, $magnify_zoom,
@@ -68,7 +67,7 @@ my (
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
 	$current_pixel, %tags,
-	@max_window_size,
+	@max_window_size, @magnify_size,
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog,
 	$slideshow, $animation, $codecs,
@@ -1472,7 +1471,10 @@ sub iv_mousedown
 		@{$self}{qw(x y marquee_x marquee_y)} = map { int } convert_screen_to_point( $x, $y, $x, $y);
 		$self-> capture(1, $self);
 	} elsif ( $btn == mb::Middle) {
-		return magnify( $magnify ? 0 : 1);
+		return magnify(
+			$magnify ? 0 : 1, 
+			( $mod & km::Ctrl) ? 2 : 1
+		);
 	} else {
 		return;
 	}
@@ -1530,8 +1532,8 @@ sub iv_mousemove
 		
 		if ( $magnify) {
 			$magnify-> origin( 
-				$x - $MagnifyingGlassSize[0]/2,
-				$y - $MagnifyingGlassSize[1]/2,
+				$x - $magnify_size[0]/2,
+				$y - $magnify_size[1]/2,
 			);
 			$magnify-> repaint;
 			$self-> update_view;
@@ -2248,12 +2250,13 @@ sub image_remove_red_eyes
 
 sub magnify
 {
-	my $show = $_[0];
+	my ($show, $scale) = @_;
 
 	if ( $show) {
 		return if $magnify;
+		@magnify_size = map { $_ * $scale } @MagnifyingGlassSize;
 		my $x = $w-> insert( Widget => 
-			size		=> \@MagnifyingGlassSize,
+			size		=> \@magnify_size,
 			syncPaint	=> 1,
 			buffered	=> 1,
 			clipOwner       => not($fullscreen),
@@ -2263,7 +2266,7 @@ sub magnify
 				my ( $self, $canvas) = @_;
 				$self-> clear;
 				if ( $image) {
-					my @m = map { $_ - 2 } @MagnifyingGlassSize;
+					my @m = map { $_ - 2 } @magnify_size;
 					my $z = $zoom * $magnify_zoom;
 					my @c = map { $_ / $z } @m;
 					my @i = convert_screen_to_point( $iv-> pointerPos);
@@ -2283,7 +2286,7 @@ sub magnify
 						rop::CopyPut
 					);
 				}
-   				$self-> rectangle( 0, 0, map { $_ - 1 } @MagnifyingGlassSize);
+   				$self-> rectangle( 0, 0, map { $_ - 1 } @magnify_size);
 			},
 		);
 		$magnify_zoom = 2;
@@ -2888,7 +2891,9 @@ Press shift and move the mouse around the picture
 =head2 Magnifying glass
 
 Press middle button. To change zoom, rotate the mouse wheel.  The mouse pointer
-gets hidden, but press shift and move the pointer to show it back.
+gets hidden, but press shift and move the pointer to show it back. If the
+middle button is pressed together with Ctrl, then the magnifying glass is
+double size.
 
 =head2 Execute
 
