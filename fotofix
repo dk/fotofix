@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.69 2008/06/19 08:30:11 dk Exp $
+# $Id: fotofix,v 1.70 2008/06/19 12:12:12 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -22,7 +22,7 @@ V
 use strict;
 use warnings;
 use Prima 1.26 qw(
-	Application ImageViewer StdDlg
+	Application ImageViewer StdDlg Utils
 	MsgBox IniFile EventHook ComboBox
 );
 use Cwd qw(getcwd abs_path);
@@ -62,7 +62,7 @@ my (
 	$w, $menu, $iv, $image, 
 	$magnify, $magnify_zoom,
 	$ini,
-	$want_prebuffered_zoom, $use_prebuffered_zoom, $image_is_loading,
+	$want_prebuffered_zoom, $use_prebuffered_zoom, $image_is_loading, $delay_expensive_scaling,
 	%neighbour_files_cache,
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
@@ -151,6 +151,17 @@ sub image_reset_display_buffer
 	$use_prebuffered_zoom = $want_prebuffered_zoom ? 
 		can_use_prebuffered_zoom() : 
 		0;
+		
+	# accumulate requests to scaling
+	if ( $delay_expensive_scaling) {
+		Prima::Utils::post( sub {
+			if ( $delay_expensive_scaling) {
+				undef $delay_expensive_scaling;
+				image_reset_display_buffer();
+			}
+		} ) if $use_prebuffered_zoom;
+		undef $use_prebuffered_zoom;
+	}
 
 	if ( $use_prebuffered_zoom) {
 		my $g;
@@ -906,6 +917,7 @@ sub open_new_image
 		animation_load($filename);
 
 	$image = $i;
+	$delay_expensive_scaling = 1;
 	image_reset_display_buffer();
 
 	update_window_size();
