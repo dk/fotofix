@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.70 2008/06/19 12:12:12 dk Exp $
+# $Id: fotofix,v 1.71 2008/06/19 12:19:20 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -917,7 +917,7 @@ sub open_new_image
 		animation_load($filename);
 
 	$image = $i;
-	$delay_expensive_scaling = 1;
+	$delay_expensive_scaling = 1 if $ini->{DelayScaling};
 	image_reset_display_buffer();
 
 	update_window_size();
@@ -2602,6 +2602,7 @@ $ini = Prima::IniFile-> create(
 				SlideDelay   => 3,
 				AutoPosition => 0,
 				ShowPartial  => 1,
+				DelayScaling => 1,
 				Transition   => 'block',
 			],
 		],
@@ -2739,10 +2740,13 @@ $w = Prima::Window-> create( menuItems => [
 			$UseImageMagick ? (
 			['ScalingQuadratic' => 'Bi~linear'         => \&scaling_set ],
 			['ScalingCubic'     => 'Bi~cubic'          => \&scaling_set ],
-			map {
+			( map {
 			[ "Scaling$_"       => $_                  => \&scaling_set ]
 			} qw( Triangle Hermite Hanning Hamming Blackman Gaussian 
-			Catrom Mitchell Lanczos Bessel Sinc)
+			Catrom Mitchell Lanczos Bessel Sinc)),
+			[],
+			[ ( $ini->{DelayScaling} ? '*' : '') .
+			'DelayScaling', 'Delay slow ~scaling' => \&menuitem_toggle ],
 			) : (
 			['Install Prima::Image::Magick for more', sub{}]
 			)
@@ -2763,7 +2767,7 @@ $w = Prima::Window-> create( menuItems => [
 		[ ( $ini->{AutoPosition} ? '*' : '') .
 		'AutoPosition' => 'Change window ~position when resizing' => \&menuitem_toggle ],
 		[ ( $ini->{ShowPartial} ? '*' : '') .
-		'ShowPartial', 'Show loading ~progress' => \&menuitem_toggle ],
+		'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
 	]],
 	[],
 	['~Help' => [
