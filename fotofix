@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.68 2008/06/18 19:15:52 dk Exp $
+# $Id: fotofix,v 1.69 2008/06/19 08:30:11 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1531,10 +1531,12 @@ sub iv_mousemove
 		} 
 		
 		if ( $magnify) {
+			$magnify-> hide;
 			$magnify-> origin( 
 				$x - $magnify_size[0]/2,
 				$y - $magnify_size[1]/2,
 			);
+			$magnify-> show;
 			$magnify-> repaint;
 			$self-> update_view;
 		}
