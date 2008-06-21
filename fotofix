@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.72 2008/06/21 13:22:16 dk Exp $
+# $Id: fotofix,v 1.73 2008/06/21 13:50:53 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1806,6 +1806,7 @@ sub animation_next
 {
 	return unless $animation;
 	$animation-> {timer}-> notify('Tick');
+	$iv-> update_view;
 }
 
 sub animation_rewind
