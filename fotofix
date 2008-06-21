@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.71 2008/06/19 12:19:20 dk Exp $
+# $Id: fotofix,v 1.72 2008/06/21 13:22:16 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -58,11 +58,13 @@ my $RedEyesHueDiff = 1.0;
 
 my @MagnifyingGlassSize   = (302,202);
 
+my $ImageScalingDelay = 100;
+
 my ( 
 	$w, $menu, $iv, $image, 
 	$magnify, $magnify_zoom,
 	$ini,
-	$want_prebuffered_zoom, $use_prebuffered_zoom, $image_is_loading, $delay_expensive_scaling,
+	$use_prebuffered_zoom, $image_is_loading,
 	%neighbour_files_cache,
 	$filename, $filecodec,
 	$region, %icons, @window_rect,
@@ -146,26 +148,33 @@ sub loadIPA
 	return 1;
 }
 
+sub image_preferred_scaling
+{
+	return 0 if $ini-> {Scaling} eq '0';
+	return 0 if $zoom == 1.0; # duh
+	
+	# no point in replotting expensive scaling on each image read
+	return 0 if $image_is_loading; 
+
+	return $ini-> {Scaling} if $ini-> {Scaling} ne '1';
+
+	my $use_buffered_zoom = $UseBufferedZoom;
+	my @as = $::application-> size;
+	$use_buffered_zoom = 0 if 
+		$zoom * $image-> width  > $as[0] or
+		$zoom * $image-> height > $as[1];
+
+	return $use_buffered_zoom;
+}
+
+
 sub image_reset_display_buffer
 {
-	$use_prebuffered_zoom = $want_prebuffered_zoom ? 
-		can_use_prebuffered_zoom() : 
-		0;
-		
-	# accumulate requests to scaling
-	if ( $delay_expensive_scaling) {
-		Prima::Utils::post( sub {
-			if ( $delay_expensive_scaling) {
-				undef $delay_expensive_scaling;
-				image_reset_display_buffer();
-			}
-		} ) if $use_prebuffered_zoom;
-		undef $use_prebuffered_zoom;
-	}
+	my $scaling = image_preferred_scaling;
 
-	if ( $use_prebuffered_zoom) {
+	if ( $scaling ne '0') {
 		my $g;
-		if ( $ini-> {Scaling} ne '1') {
+		if ( $scaling ne '1') {
 			$g = Prima::Image::Magick::prima_to_magick( $image);
 			$g-> Resize( 
 				width  => int($image-> width  * $zoom),
@@ -179,9 +188,11 @@ sub image_reset_display_buffer
 		}
 		$iv-> zoom( 1.0);
 		$iv-> image( $g);
+		$use_prebuffered_zoom = 1;
 	} else {
 		$iv-> image( $image);
 		$iv-> zoom( $zoom);
+		$use_prebuffered_zoom = 0;
 	}
 	$iv-> palette( $image-> palette);
 }
@@ -208,29 +219,10 @@ sub image_replace
 	update_window_size() unless $eq;
 }
 
-sub can_use_prebuffered_zoom
-{
-	return 0 if $ini-> {Scaling} eq '0';
-	
-	return 0 if $zoom == 1.0; # duh
-
-	return 0 if $image_is_loading; # no point in replotting expensive scaling on each image read
-
-	return 1 if $ini-> {Scaling} ne '1';
-
-	my @as = $::application-> size;
-	return 0 if 
-		$zoom * $image-> width  > $as[0] or
-		$zoom * $image-> height > $as[1];
-
-	1;
-}
-
 sub zoom_set
 {
 	my $old_zoom = $zoom;
-	($zoom, $want_prebuffered_zoom) = @_;
-	$want_prebuffered_zoom = 1 unless defined $want_prebuffered_zoom;
+	$zoom = shift;
 	$zoom = 0.02 if $zoom < 0.02;
 	$zoom = 100  if $zoom > 100;
 	return if $zoom == $old_zoom;
@@ -271,7 +263,7 @@ sub zoom_scale { zoom_set $zoom * shift }
 
 sub zoom_best_fit
 {
-	zoom_set( zoom_from_window_size( $iv-> size), 1) if $image;
+	zoom_set( zoom_from_window_size( $iv-> size)) if $image;
 }
 
 sub convert_screen_to_point
@@ -585,7 +577,7 @@ sub update_window_size
 		
 		my @as = get_client_size();
 
-		zoom_set(1.0, 0);
+		zoom_set(1.0);
 		update_window_title();
 		$is[0] = $as[0] if $is[0] > $as[0];
 		$is[1] = $as[1] if $is[1] > $as[1];
@@ -848,6 +840,7 @@ sub open_new_image
 	my $save = $image;
 	my $i = Prima::Image-> new;
 	my $ok;
+	my $reset_zoom = 1;
 
 	if ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
 		$image_is_loading++;
@@ -856,6 +849,7 @@ sub open_new_image
 			$image = $i;
 			image_reset_display_buffer();
 			update_window_size;
+			$reset_zoom = 0;
 		});
 		$ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
 		$i-> remove_notification( $id);
@@ -881,7 +875,7 @@ sub open_new_image
 	close_image();
 	$filename = $fn;
 	$filecodec = $i-> {extras}->{codecID};
-	$zoom = 1.0;
+	$zoom = 1.0 if $reset_zoom;
 
 	if (
 		$opt{slideshow} and
@@ -917,7 +911,9 @@ sub open_new_image
 		animation_load($filename);
 
 	$image = $i;
-	$delay_expensive_scaling = 1 if $ini->{DelayScaling};
+	my $save_scaling = $ini-> {Scaling};
+	$ini-> {Scaling} = $UseBufferedZoom 
+		if $ini-> {DelayScaling} and $ini-> {Scaling} !~ /^[01]$/;
 	image_reset_display_buffer();
 
 	update_window_size();
@@ -925,6 +921,21 @@ sub open_new_image
 	update_menu_status();
 	
 	$iv-> update_view;
+
+	if ( $ini-> {Scaling} ne $save_scaling) {
+		$ini-> {Scaling} = $save_scaling;
+		$w-> {DelayTimer} ||= $w-> insert( Timer =>
+			timeout => $ImageScalingDelay,
+			onTick  => sub {
+				shift-> destroy;
+				undef $w-> {DelayTimer};
+				image_reset_display_buffer();
+			}
+		);
+		$w-> {DelayTimer}-> stop;
+		$w-> {DelayTimer}-> start;
+	}
+
 	return 1;
 }
 
