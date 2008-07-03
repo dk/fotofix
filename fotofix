@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.73 2008/06/21 13:50:53 dk Exp $
+# $Id: fotofix,v 1.74 2008/07/03 08:15:21 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -758,6 +758,7 @@ sub transition_blend
 			[$blend2,$blend1],
 			'alpha' . ( $_ * 16 - 1)
 	)) for 1..15;
+	$iv-> put_image( 0, 0, $blend2);
 }
 
 sub transition_images
@@ -841,6 +842,7 @@ sub open_new_image
 	my $i = Prima::Image-> new;
 	my $ok;
 	my $reset_zoom = 1;
+	my $window_size_updated;
 
 	if ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
 		$image_is_loading++;
@@ -890,8 +892,11 @@ sub open_new_image
 		my @r = $iv-> client_to_screen( 0, 0, $iv-> size);
 		$blend1 = $::application-> get_image( @r);
 		$image = $i;
-		image_reset_display_buffer();
+		image_reset_display_buffer(); # this is fast, zoom = 1
+
 		update_window_size();
+		$window_size_updated = 1;
+
 		$blend2 = $blend1-> dup;
 		$blend2-> begin_paint;
 		$blend2-> $_( $iv-> $_) for qw(color backColor);
@@ -912,11 +917,14 @@ sub open_new_image
 
 	$image = $i;
 	my $save_scaling = $ini-> {Scaling};
-	$ini-> {Scaling} = $UseBufferedZoom 
-		if $ini-> {DelayScaling} and $ini-> {Scaling} !~ /^[01]$/;
-	image_reset_display_buffer();
 
-	update_window_size();
+	unless ( $window_size_updated) {
+		$ini-> {Scaling} = $UseBufferedZoom 
+			if $ini-> {DelayScaling} and $ini-> {Scaling} !~ /^[01]$/;
+		image_reset_display_buffer();
+
+		update_window_size();
+	}
 	update_window_title();
 	update_menu_status();
 	
