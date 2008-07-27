@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.76 2008/07/27 18:51:16 dk Exp $
+# $Id: fotofix,v 1.77 2008/07/27 19:51:25 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -487,6 +487,7 @@ sub update_menu_status
 		next prev first last reopen
 		convert copy copybits view rotate effects
 		tag slideshow resize info
+		tcopy tmove tprefix trename tdelete texecute
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
@@ -1276,13 +1277,23 @@ sub open_next_tagged_image
 
 sub files_get_selection
 {
-	if ( keys %tags) {
-		return sort keys %tags;
-	} elsif ( defined $filename) {
-		return ( $filename);
+	my $use_tags = shift;
+	if ( $use_tags) {
+		if ( keys %tags) {
+			return sort keys %tags;
+		} elsif ( defined $filename) {
+			return ( $filename);
+		} else {
+			message("No tagged files, no open files, nothing to do");
+			return ();
+		}
 	} else {
-		message("No tagged files, no open files, nothing to do");
-		return ();
+		if ( defined $filename) {
+			return ( $filename);
+		} else {
+			message("No open files, nothing to do");
+			return ();
+		}
 	}
 }
 
@@ -1307,14 +1318,14 @@ sub files_multirun
 
 sub files_copy_move
 {
-	my $op = shift;
+	my ($op, $use_tags) = @_;
 	my $name = ucfirst $op;
 
 	require Prima::FileDialog;
 	eval { require File::Copy; };
 	return message( $@) if $@;
 
-	my @f = files_get_selection();
+	my @f = files_get_selection($use_tags);
 	return unless @f;
 	$chdir_dialog = Prima::ChDirDialog-> new()
 		unless $chdir_dialog;
@@ -1375,8 +1386,10 @@ sub files_copy_move
 	update_window_title();
 }
 
-sub files_copy { files_copy_move( 'copy' ) }
-sub files_move { files_copy_move( 'move' ) }
+sub files_copy { files_copy_move( 'copy', 1 ) }
+sub files_move { files_copy_move( 'move', 1 ) }
+sub file_copy  { files_copy_move( 'copy', 0 ) }
+sub file_move  { files_copy_move( 'move', 0 ) }
 	
 sub files_rename_exec
 {
@@ -1419,9 +1432,9 @@ sub files_rename_exec
 	}
 }
 
-sub files_rename
+sub do_rename
 {
-	my @f = files_get_selection();
+	my @f = files_get_selection(shift);
 	return unless @f;
 
 	my $cmd = input_box(
@@ -1436,9 +1449,12 @@ sub files_rename
 	files_rename_exec('Rename', $cmd, @f);
 }
 
-sub files_prefix
+sub files_rename { do_rename(1) }
+sub file_rename  { do_rename(0) }
+
+sub do_prefix
 {
-	my @f = files_get_selection();
+	my @f = files_get_selection(shift);
 	return unless @f;
 
 	my $cmd = input_box(
@@ -1452,9 +1468,12 @@ sub files_prefix
 	files_rename_exec('Prefix', "s/^/$cmd/", @f );
 }
 
-sub files_delete
+sub files_prefix { do_prefix(1) }
+sub file_prefix  { do_prefix(0) }
+
+sub do_delete
 {
-	my @f = files_get_selection();
+	my @f = files_get_selection(shift);
 	return unless @f;
 
 	return unless mb::Ok == message_box(
@@ -1486,9 +1505,12 @@ sub files_delete
 	update_window_title();
 }
 
-sub files_execute
+sub files_delete { do_delete(1) }
+sub file_delete  { do_delete(0) }
+
+sub do_execute
 {
-	my @f = files_get_selection();
+	my @f = files_get_selection(shift);
 	return unless @f;
 
 	my $cmd = input_box(
@@ -1525,6 +1547,43 @@ sub files_execute
 			message_box('Execute', "'$cmd' failed: error code $?");
 	}
 	update_window_title();
+}
+
+sub files_execute { do_execute(1) }
+sub file_execute  { do_execute(0) }
+
+sub external_command_edit
+{{
+	my $num = input_box(
+		'Enter command number',
+		'Enter number from 1 to 9',
+		'',
+		mb::OkCancel|mb::Help, { helpTopic => "$0/External commands" },
+	);
+	return unless defined $num;
+	redo unless $num =~ /^\d$/;
+
+	my $cmd = input_box(
+		'Enter command',
+		'Command line with $_ as file wildcard',
+		$ini-> {"Ext$num"},
+		mb::OkCancel|mb::Help, { helpTopic => "$0/External commands" },
+	);
+	return unless defined $cmd;
+	$ini-> {"Ext$num"} = $cmd;
+	$w-> menu-> text("ext$num", $cmd);
+}}
+
+sub external_command
+{
+	my $command = $ini-> {"Ext$_[0]"};
+	return unless length $command;
+	if ( $command =~ /\$_/) {
+		return unless defined $filename;
+		$command =~ s/\$_/$filename/g;
+	}
+	return if 0 == system $command;
+	message_box( 'Execute', "'$command' failed: error code $?");
 }
 
 
@@ -2743,6 +2802,7 @@ $ini = Prima::IniFile-> create(
 				ShowPartial  => 1,
 				DelayScaling => 1,
 				Transition   => 'block',
+				( map {( "Ext$_" => '' )} (1..9)),
 			],
 		],
 )-> section('Main');
@@ -2775,13 +2835,33 @@ $w = Prima::Window-> create( menuItems => [
 		]],
 		['tagged'  => '~Tagged files' => [['tagset']]],
 		['lastfile'=> '~Last opened files' => [['lastfileset']]],
-		[],
-		['fcopy'   => 'Copy...'    => 'F5'  => 'F5'         => \&files_copy ],
-		['fmove'   => 'Move...'    => 'F6'  => 'F6'         => \&files_move ],
-		['prefix'  => 'Add prefix...'=>'F7' => 'F7'         => \&files_prefix ],
-		['rename'  => 'Rename...'  => 'F8'  => 'F8'         => \&files_rename ],
-		['delete'  => 'Delete...'  => 'Del' => kb::Delete   => \&files_delete ],
-		['execute' => 'E~xecute on tagged...' => 'Ctrl+X' => '^X'  => \&files_execute ],
+		['This file or tagge~d' => [
+			['fcopy'   => 'Copy...'    => 'F5'  => 'F5'         => \&files_copy ],
+			['fmove'   => 'Move...'    => 'F6'  => 'F6'         => \&files_move ],
+			['prefix'  => 'Add prefix...'=>'F7' => 'F7'         => \&files_prefix ],
+			['rename'  => 'Rename...'  => 'F8'  => 'F8'         => \&files_rename ],
+			['delete'  => 'Delete...'  => 'Del' => kb::Delete   => \&files_delete ],
+			['execute' => 'E~xecute on tagged...' => 'Ctrl+X' => '^X'  => \&files_execute ],
+		]],
+		['This file' => [
+			['tcopy'   => 'Copy...'    => 'Shift+F5'  => '#F5'         => \&file_copy ],
+			['tmove'   => 'Move...'    => 'Shift+F6'  => '#F6'         => \&file_move ],
+			['tprefix' => 'Add prefix...'=>'Shift+F7' => '#F7'         => \&file_prefix ],
+			['trename' => 'Rename...'  => 'Shift+F8'  => '#F8'         => \&file_rename ],
+			['tdelete' => 'Delete...'  => 'Shift+Del' => km::Shift|kb::Delete   => \&file_delete ],
+			['texecute' => 'E~xecute...'=> 'Ctrl+Shift+X' => '^#X'  => \&file_execute ],
+		]],
+		['E~xternal commands' => [
+			['~Edit...' => \&external_command_edit ],
+			[],
+			(map {
+				my $id = $_;
+				[
+					"ext$id", $ini-> {"Ext$id"}, 
+					"Alt+$id", "\@$_", sub { external_command($id) }
+				]
+			} (1..9))
+		]],
 		[],
 		['E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
@@ -2905,7 +2985,7 @@ $w = Prima::Window-> create( menuItems => [
 			[ 'tx_block', 'B~lock effect' => \&transition_set ],
 		]],
 		[ ( $ini->{AutoPosition} ? '*' : '') .
-		'AutoPosition' => 'Change window ~position when resizing' => \&menuitem_toggle ],
+		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
 		[ ( $ini->{ShowPartial} ? '*' : '') .
 		'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
 	]],
@@ -3061,6 +3141,12 @@ and C<$_> is substituted to the filename. If C<$*> is found, then a single comma
 is executed, where C<$*> is substitled to a list of all tagged files. Both C<$*> and
 C<$_> cannot be specified simultaneously. If neither is specified, C<$*> is assumed to be
 appended to the end of the command.
+
+=head2 External commands
+
+Specify an external command that will be executed on Alt+num shortcut on the currently
+opened file. The syntax allows C<$_> wildcard globbing to specify exactly where the
+file name will appear. Set empty string to delete the command shortcut.
 
 =head2 Rename
 
