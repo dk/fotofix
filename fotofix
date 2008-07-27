@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.74 2008/07/03 08:15:21 dk Exp $
+# $Id: fotofix,v 1.75 2008/07/27 14:40:48 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -486,7 +486,7 @@ sub update_menu_status
 	$menu-> enabled( $_ , $x) for qw(
 		next prev first last reopen
 		convert copy copybits view rotate effects
-		tag slideshow resize
+		tag slideshow resize info
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
@@ -1085,6 +1085,76 @@ sub save_image_as
 	$ok;
 }
 
+sub image_info
+{
+	my $i;
+	if ( $animation) {
+		my $a = $animation-> {player};
+		$i = 
+			$a-> {images}-> [ $a-> {current} ] || 
+			$a-> {images}-> [-1];
+	} else {
+		$i = $image;
+	}
+	return unless $i;
+
+	require Prima::DetailedList;
+	$codecs ||= Prima::Image-> codecs;
+
+	my %e;
+	%e = %{ $i-> {extras}} if $i-> {extras};
+	if ( defined $filename) {
+		$e{'file name'} = $filename;
+		if ( -f $filename) {
+			$e{'file size'} = (-s $filename) . ' bytes';
+			$e{'file date'} = localtime(time - int( 86400 * -M $filename));
+		}
+	}
+	$e{width}       = $i-> width . ' pixels';
+	$e{height}      = $i-> height . ' pixels';
+	$e{depth}       = $i-> get_bpp . ' bpp';
+	$e{'animation frame index'} = $animation-> {player}-> {current} 
+		if $animation;
+	$e{palette}     = [ map { sprintf "%06x", $_ } $i-> colormap ]
+		if $i-> get_bpp < 24;
+
+	my $cm = $i-> type & im::Category;
+	$e{'color model'} = 
+		( $cm == im::Color)      ? 'RGB' :
+		( $cm == im::GrayScale)  ? 'Gray scale' 
+		                         : 'Floating point';
+
+	my @items;
+	for my $k ( sort keys %e) {
+		my $v = $e{$k};
+		unless ( defined $v) {
+			$v = 'undefined';
+		} elsif ( ref($v) eq 'ARRAY') {
+			$v = '[' . join(',', grep { defined } @$v) . ']';
+		} elsif ( $k eq 'codecID') {
+			$k = 'codec';
+			$v = $codecs-> [$v]-> {name};
+		} elsif ( ref($v)) {
+			next;
+		}
+		push @items, [ $k, $v];
+	}
+
+	my $d = Prima::Window-> create(
+		text     => 'File information',
+		size     => [ 300, 200 ],
+		centered => 1,
+		visible  => 0,
+	);
+	$d-> insert( DetailedList => 
+		pack    => { expand => 1, fill => 'both' },
+		items   => \@items,
+		headers => [ Property => 'Value'],
+		columns => 2,
+	);
+	$d-> execute;
+}
+
 sub filename2tag
 {
 	my $fn = shift;
@@ -1499,7 +1569,8 @@ sub iv_mousedown
 		$self-> pointer( $icons{hand});
 		$self-> capture(1);
 	} elsif ( $btn == mb::Left) {
-		@{$self}{qw(x y marquee_x marquee_y)} = map { int } convert_screen_to_point( $x, $y, $x, $y);
+		@{$self}{qw(x y marquee_x marquee_y)}
+			= map { int } convert_screen_to_point( $x, $y, $x, $y);
 		$self-> capture(1, $self);
 	} elsif ( $btn == mb::Middle) {
 		return magnify(
@@ -1562,14 +1633,18 @@ sub iv_mousemove
 		} 
 		
 		if ( $magnify) {
-			$magnify-> hide;
-			$magnify-> origin( 
+			my @o = $magnify-> origin;
+			my @n = (
 				$x - $magnify_size[0]/2,
 				$y - $magnify_size[1]/2,
 			);
-			$magnify-> show;
-			$magnify-> repaint;
-			$self-> update_view;
+			if ( "$o[0]:$o[1]" ne "$n[0]:$n[1]") {
+				$magnify-> hide;
+				$magnify-> origin( @n);
+				$magnify-> show;
+				$magnify-> repaint;
+				$self-> update_view;
+			}
 		}
 	} elsif ( $self-> {drag} == mb::Right) {
 		my ($dx,$dy) = ($x - $self-> {x}, $y - $self-> {y});
@@ -2635,6 +2710,7 @@ $w = Prima::Window-> create( menuItems => [
 		['reopen' => '~Reopen image...'=> 'Ctrl+Shift+O' => '^#O' => \&reopen_image],
 		['save'   => '~Save image'     => 'Ctrl+S'       => '^S' => \&save_image],
 		['saveas' => 'S~ave as...'     => 'Ctrl+Shift+S' => '^#S'=> \&save_image_as],
+		['info'   => '~Information...' =>                        => \&image_info],
 		[],
 		['first'  => '~First image'    => 'Home'         => kb::Home      => \&open_next_image ],
 		['next'   => '~Next image'     => 'Space'        => kb::Space     => \&open_next_image ],
