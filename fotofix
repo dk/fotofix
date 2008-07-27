@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.75 2008/07/27 14:40:48 dk Exp $
+# $Id: fotofix,v 1.76 2008/07/27 18:51:16 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1915,21 +1915,22 @@ sub
 		siblings => [qw(focusLink)],
 		profile => {
 			owner => 'Form1',
-			text => '~Width',
 			focusLink => 'Width',
+			text => '~Width',
 			origin => [ 8, 180],
 			name => 'Label1',
 			size => [ 143, 23],
 	}},
 	'Form1' => {
-		class   => 'Prima::Window',
+		class   => 'Prima::Dialog',
 		module  => 'Prima::Classes',
 		parent => 1,
+		code => Prima::VB::VBLoader::GO_SUB(''),
 		profile => {
 			sizeDontCare => 0,
 			text => 'Resize image',
 			name => 'Form1',
-			origin => [ 817, 580],
+			origin => [ 733, 508],
 			originDontCare => 0,
 			size => [ 467, 214],
 	}},
@@ -1939,10 +1940,10 @@ sub
 		siblings => [qw(focusLink)],
 		profile => {
 			owner => 'Form1',
-			text => '~Height',
 			focusLink => 'Height',
-			name => 'Label2',
+			text => '~Height',
 			origin => [ 8, 132],
+			name => 'Label2',
 			size => [ 143, 23],
 	}},
 	'Scaling' => {
@@ -1952,9 +1953,9 @@ sub
 			owner => 'Form1',
 			tabOrder => 4,
 			text => '',
-			name => 'Scaling',
-			origin => [ 160, 156],
 			style => cs::DropDownList,
+			origin => [ 160, 156],
+			name => 'Scaling',
 			size => [ 143, 23],
 	}},
 	'Label3' => {
@@ -1963,10 +1964,10 @@ sub
 		siblings => [qw(focusLink)],
 		profile => {
 			owner => 'Form1',
-			text => '~Scaling',
 			focusLink => 'Scaling',
-			name => 'Label3',
+			text => '~Scaling',
 			origin => [ 160, 180],
+			name => 'Label3',
 			size => [ 143, 23],
 	}},
 	'Color' => {
@@ -1975,8 +1976,8 @@ sub
 		profile => {
 			owner => 'Form1',
 			tabOrder => 5,
-			name => 'Color',
 			origin => [ 160, 108],
+			name => 'Color',
 			size => [ 143, 23],
 	}},
 	'Label4' => {
@@ -1985,10 +1986,10 @@ sub
 		siblings => [qw(focusLink)],
 		profile => {
 			owner => 'Form1',
-			focusLink => 'Color',
 			text => '~Color fill',
-			name => 'Label4',
+			focusLink => 'Color',
 			origin => [ 160, 132],
+			name => 'Label4',
 			size => [ 143, 23],
 	}},
 	'Proportional' => {
@@ -1999,7 +2000,7 @@ sub
 			tabOrder => 2,
 			text => '~Proportional',
 			name => 'Proportional',
-			origin => [ 8, 84],
+			origin => [ 8, 24],
 			size => [ 143, 23],
 	}},
 	'Stretch' => {
@@ -2009,8 +2010,8 @@ sub
 			owner => 'Form1',
 			tabOrder => 3,
 			text => 'S~tretch',
-			origin => [ 8, 60],
 			name => 'Stretch',
+			origin => [ 8, 0],
 			size => [ 143, 23],
 	}},
 	'Placement' => {
@@ -2018,8 +2019,8 @@ sub
 		module  => 'Prima::ComboBox',
 		profile => {
 			owner => 'Form1',
-			style => cs::DropDownList,
 			origin => [ 160, 60],
+			style => cs::DropDownList,
 			name => 'Placement',
 			size => [ 143, 23],
 			tabOrder => 6,
@@ -2032,10 +2033,10 @@ sub
 		siblings => [qw(focusLink)],
 		profile => {
 			owner => 'Form1',
-			text => 'P~lacement',
 			focusLink => 'Scaling',
-			name => 'Label5',
+			text => 'P~lacement',
 			origin => [ 160, 84],
+			name => 'Label5',
 			size => [ 143, 23],
 	}},
 	'Width' => {
@@ -2045,8 +2046,8 @@ sub
 			owner => 'Form1',
 			tabOrder => 0,
 			min => 1,
-			max => 16384,
 			origin => [ 8, 156],
+			max => 16384,
 			name => 'Width',
 			size => [ 143, 23],
 	}},
@@ -2057,9 +2058,9 @@ sub
 			owner => 'Form1',
 			tabOrder => 1,
 			min => 1,
+			origin => [ 8, 108],
 			max => 16384,
 			name => 'Height',
-			origin => [ 8, 108],
 			size => [ 143, 23],
 	}},
 	'Display' => {
@@ -2068,8 +2069,8 @@ sub
 		profile => {
 			owner => 'Form1',
 			tabOrder => 7,
-			name => 'Display',
 			origin => [ 312, 60],
+			name => 'Display',
 			size => [ 144, 144],
 	}},
 	'Button1' => {
@@ -2096,6 +2097,30 @@ sub
 			name => 'Button2',
 			default => 1,
 			size => [ 96, 36],
+	}},
+	'Predefined' => {
+		class   => 'Prima::ComboBox',
+		module  => 'Prima::ComboBox',
+		profile => {
+			owner => 'Form1',
+			tabOrder => 6,
+			text => '',
+			name => 'Predefined',
+			style => cs::DropDownList,
+			origin => [ 8, 60],
+			size => [ 143, 23],
+	}},
+	'Label6' => {
+		class   => 'Prima::Label',
+		module  => 'Prima::Label',
+		siblings => [qw(focusLink)],
+		profile => {
+			owner => 'Form1',
+			focusLink => 'Predefined',
+			text => 'Predefined si~zes',
+			origin => [ 8, 84],
+			name => 'Label6',
+			size => [ 143, 23],
 	}},
 	);
 }
@@ -2136,6 +2161,16 @@ sub image_resize
 	my %form;
 	my @is = ( $image-> width, $image-> height);
 	my @cm = $image-> colormap;
+
+	my @predefined_sizes;
+	for ( 640, 800, 1024, 1280, 1600) {
+		my $dx = int($_ * $is[0] / $is[1] + .5);
+		push @predefined_sizes, "${dx}x$_";
+	}
+	for my $z ( 0.25, 0.33, 0.50, 0.66, 0.75, 1.25, 1.33, 1.50, 2.00, 3.00) {
+		my @ns = map { int( $_ * $z + .5 ) } @is;
+		push @predefined_sizes, $z * 100 . "% $ns[0]x$ns[1]";
+	}
 	
 	%form = Prima::VB::VBLoader::AUTOFORM_REALIZE( [ $ResizeFM-> () ], {
 		Form1        => { visible => 0, designScale => [ 9, 19 ] },
@@ -2154,6 +2189,15 @@ sub image_resize
 				$form{Width}-> value( int( 
 					shift-> value * $is[0] / $is[1] + .5
 				)) if $form{Proportional}-> checked;
+				$form{Display}-> repaint;
+			},
+		},
+		Predefined   => {
+			items => \@predefined_sizes,
+			onChange => sub {
+				my ( $w, $h) = $_[0]-> text =~ /(\d+)x(\d+)$/;
+				$form{Width}-> value( $w);
+				$form{Height}-> value( $h);
 				$form{Display}-> repaint;
 			},
 		},
