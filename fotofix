@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.78 2008/08/02 20:53:56 dk Exp $
+# $Id: fotofix,v 1.79 2008/08/27 13:46:51 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -496,7 +496,7 @@ sub update_menu_status
 	$menu-> enabled( $_, $x) for qw(crop redeyes);
 
 	$x = defined $filename;
-	$menu-> enabled( $_, $x) for qw(save delete);
+	$menu-> enabled( $_, $x) for qw(save delete copyname);
 
 	$menu-> enabled('save',      $animation ? 0 : 1);
 	$menu-> enabled('saveas',    $animation ? 0 : $image);
@@ -2879,6 +2879,9 @@ $w = Prima::Window-> create( menuItems => [
 		}],
 		['copybits' => 'Copy as ~displayed' => sub {
 			$::application-> Clipboard-> image(image_as_displayed());
+		}],
+		['copyname' => 'Copy path to file' => sub {
+			$::application-> Clipboard-> text(filename2tag( $filename));
 		}],
 		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
 			my $i = $::application-> Clipboard-> image;
