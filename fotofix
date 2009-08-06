@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.79 2008/08/27 13:46:51 dk Exp $
+# $Id: fotofix,v 1.80 2009/08/06 05:00:59 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -2891,7 +2891,7 @@ $w = Prima::Window-> create( menuItems => [
 				image_replace( $i);
 			}
 		}],
-		['-crop' => 'Cr~op' => sub {
+		['-crop' => 'Cr~op' => 'Alt+C' => '@C' => sub {
 			return unless $image and $region;
 			image_replace( region_image());
 		}],
