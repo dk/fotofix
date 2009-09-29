@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.80 2009/08/06 05:00:59 dk Exp $
+# $Id: fotofix,v 1.81 2009/09/29 11:11:26 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -2473,6 +2473,7 @@ sub magnify
 			size		=> \@magnify_size,
 			syncPaint	=> 1,
 			buffered	=> 1,
+			ownerBackColor  => 1,
 			clipOwner       => not($fullscreen),
 			onMouseWheel	=> \&iv_mousewheel,
 			onMouseMove	=> sub { magnify(0) }, # if capture was superseded by WM
