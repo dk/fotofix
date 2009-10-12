@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.81 2009/09/29 11:11:26 dk Exp $
+# $Id: fotofix,v 1.82 2009/10/12 15:53:05 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -1586,7 +1586,6 @@ sub external_command
 	message_box( 'Execute', "'$command' failed: error code $?");
 }
 
-
 sub can_close_image
 {
 	return 1 unless $modified;
@@ -1676,10 +1675,11 @@ sub iv_mousemove
 				$image-> pixel( @p);
 
 			@p = map { int } @p;
+			$p[1] = $image-> height - $p[1] - 1 unless $ini->{Cartesian};
 			$current_pixel = ( $p == cl::Invalid) ? 
 				undef : 
 				sprintf(
-					"$p[0]:" . ($image-> height - $p[1] - 1) . ' ' .
+					"$p[0]:$p[1] " .
 						$image_format_category{$image->type & im::Category},
 					$image-> pixel( convert_screen_to_point($x, $y))
 				);
@@ -2803,6 +2803,7 @@ $ini = Prima::IniFile-> create(
 				SlideDelay   => 3,
 				AutoPosition => 0,
 				ShowPartial  => 1,
+				Cartesian    => 0,
 				DelayScaling => 1,
 				Transition   => 'block',
 				( map {( "Ext$_" => '' )} (1..9)),
@@ -2994,6 +2995,8 @@ $w = Prima::Window-> create( menuItems => [
 		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
 		[ ( $ini->{ShowPartial} ? '*' : '') .
 		'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
+		[ ( $ini->{Cartesian} ? '*' : '') .
+		'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
 	]],
 	[],
 	['~Help' => [
