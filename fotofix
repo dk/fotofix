@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.82 2009/10/12 15:53:05 dk Exp $
+# $Id: fotofix,v 1.83 2009/10/16 21:02:58 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -415,6 +415,10 @@ sub update_window_title
 		$str .= " $current_pixel";
 	} elsif ( $img and not $slideshow) {
 		$str .= ' ' . int(100 * $zoom) . '%';
+		if ( defined($filename) && $ini-> {Sorting} eq 'date') {
+			my $t = (stat $filename)[9];
+			$str .= ' ' . scalar localtime($t) if defined $t;
+		}
 	}
 
 	if ( $img and not $slideshow) {
@@ -638,6 +642,17 @@ sub scaling_set
 	$menu-> check( $type, $ini-> {Scaling} = $scaling);
 
 	image_reset_display_buffer() if $image;
+}
+
+sub sorting_set
+{
+	my ( $self, $type) = @_;
+
+	my $sorting = $type;
+	$sorting =~ s/^sort_//;
+	$menu-> uncheck( 'sort_' . $ini-> {Sorting});
+	$menu-> check( $type, $ini-> {Sorting} = $sorting);
+	%neighbour_files_cache = ();
 }
 
 # In X11 we can only guarantee fullscreen by creating a non-WM-manageable widget.
@@ -962,8 +977,19 @@ sub get_dir_list
 	my $exts = join('|', map { @{$_->{fileExtensions}} } @{Prima::Image-> codecs});
 	my $rx = qr/\.($exts)$/i;
 	return unless opendir D, $basedir;
-	my @files = grep { /$rx/ } sort readdir D; 
+	my @files = grep { /$rx/ } readdir D; 
 	closedir D;
+	if ( $ini-> {Sorting} eq 'alpha') {
+		@files = sort @files;
+	} elsif ( $ini-> {Sorting} eq 'date') {
+		@files = 
+			map  { $$_[0] }
+			sort { $$a[1] cmp $$b[1] }
+			map  { [ $_, (stat "$basedir/$_")[9] ] }
+			@files;
+	}
+	@files = reverse @files unless $ini->{SortForward};
+	warn "$ini->{SortForward} : @files\n";
 
 	my $found;
 	for ( my $i = 0; $i < @files; $i++) {
@@ -2806,6 +2832,8 @@ $ini = Prima::IniFile-> create(
 				Cartesian    => 0,
 				DelayScaling => 1,
 				Transition   => 'block',
+				Sorting      => 'alpha',
+				SortForward  => 1,
 				( map {( "Ext$_" => '' )} (1..9)),
 			],
 		],
@@ -2823,7 +2851,17 @@ $w = Prima::Window-> create( menuItems => [
 		['first'  => '~First image'    => 'Home'         => kb::Home      => \&open_next_image ],
 		['next'   => '~Next image'     => 'Space'        => kb::Space     => \&open_next_image ],
 		['prev'   => '~Previous image' => 'Backspace'    => kb::Backspace => \&open_next_image ],
-		['last'   => 'Last image'     => 'End'          => kb::End       => \&open_next_image ],
+		['last'   => 'Last image'      => 'End'          => kb::End       => \&open_next_image ],
+		[ 'Sort by'  => [
+			[ 'sort_alpha' => '~Name'     => \&sorting_set ],
+			[ 'sort_date'  => '~Date'     => \&sorting_set ],
+			[ 'sort_none'  => '~Unsorted' => \&sorting_set ],
+			[],
+			[ ( $ini->{SortForward} ? '*' : '') .  'SortForward' => 'Ascending ~order' => sub {
+				menuitem_toggle(@_);
+				%neighbour_files_cache = ();
+			} ],
+		]],
 		[],
 		[ 'tags' => 'Ta~gs' => [
 			['tag'     => '~Tag/untag'              => 'Ins'            => kb::Insert             => \&tags_toggle_image  ],
@@ -3054,6 +3092,7 @@ Prima::EventHook::install(
 $ini-> {Scaling} = $UseBufferedZoom 
 	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
 scaling_set( $w, 'Scaling' . $ini-> {Scaling});
+sorting_set( $w, 'sort_' . $ini-> {Sorting});
 
 $ini-> {Transition} = 'block' if $ini-> {Transition} eq 'blend' and not $UseIPA;
 transition_set( $w, 'tx_' . $ini-> {Transition});
