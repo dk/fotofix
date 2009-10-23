@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.83 2009/10/16 21:02:58 dk Exp $
+# $Id: fotofix,v 1.84 2009/10/23 16:49:24 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -989,7 +989,6 @@ sub get_dir_list
 			@files;
 	}
 	@files = reverse @files unless $ini->{SortForward};
-	warn "$ini->{SortForward} : @files\n";
 
 	my $found;
 	for ( my $i = 0; $i < @files; $i++) {
