@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 my $__V = <<'V';
-# $Id: fotofix,v 1.85 2010/01/08 22:09:01 dk Exp $
+# $Id: fotofix,v 1.86 2010/02/08 17:40:56 dk Exp $
 V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
@@ -59,6 +59,7 @@ my $RedEyesHueDiff = 1.0;
 my @MagnifyingGlassSize   = (302,202);
 
 my $ImageScalingDelay = 100;
+my $MaxLastFiles = 5;
 
 my ( 
 	$w, $menu, $iv, $image, 
@@ -1072,7 +1073,9 @@ sub open_next_image
 		$index = $#files;
 	}
 
-	open_new_image( "$basedir/$files[$index]");
+	my $f = "$basedir/$files[$index]";
+	open_new_image($f);
+	last_file_replace($f);
 
 	if ( $slideshow) {
 		$w-> SlideshowTimer-> stop;
@@ -1298,7 +1301,9 @@ sub open_next_tagged_image
 		}
 	}
 
-	open_new_image( "$basedir/$files[$index]");
+	my $f = "$basedir/$files[$index]";
+	open_new_image( $f);
+	last_file_replace($f);
 }
 
 sub files_get_selection
@@ -2715,7 +2720,9 @@ sub slideshow_start
 				unless defined $index;
 			return slideshow_stop() if $index == $#files;
 			$index++;
-			open_new_image( "$basedir/$files[$index]", slideshow => 1);
+			my $f = "$basedir/$files[$index]";
+			open_new_image($f, slideshow => 1);
+			last_file_replace($f);
 		},
 	)-> start;
 		
@@ -2777,7 +2784,7 @@ sub last_file_add
 		push @last_files, $newfile;
 	}
 	@last_files = grep { defined } @last_files;
-	shift @last_files while 5 < @last_files;
+	shift @last_files while $MaxLastFiles < @last_files;
 
 	my $x = $menu-> get_items('lastfile');
 	if ( $x) {
@@ -2799,6 +2806,20 @@ sub last_file_add
 	@set = ['lastfileset'] unless @set;
 
 	$menu-> insert( \@set, 'lastfile', 0);
+}
+
+sub last_file_replace
+{
+	my $newfile = shift;
+	$newfile = undef if defined($newfile) and not -f $newfile;
+	return unless defined $newfile;
+	my $index = 1;
+	for ( reverse( 1 .. $MaxLastFiles)) {
+		next unless $ini->{"LastFile$_"};
+		$index = $_;
+		last;
+	}
+	$ini->{"LastFile$index"} = $newfile; # do not update menu!
 }
 
 sub menuitem_toggle
