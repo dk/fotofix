@@ -62,7 +62,7 @@ my $ImageScalingDelay = 100;
 my $MaxLastFiles = 5;
 
 my ( 
-	$w, $menu, $iv, $image, 
+	$w, $menu, $iv, $image,
 	$magnify, $magnify_zoom,
 	$ini,
 	$use_prebuffered_zoom, $image_is_loading,
@@ -73,7 +73,7 @@ my (
 	@max_window_size, @magnify_size,
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog,
-	$slideshow, $animation, $codecs,
+	$slideshow, $animation, $codecs, %preloaded,
 );
 
 my $zoom = 1.0;
@@ -151,6 +151,8 @@ sub loadIPA
 
 sub image_preferred_scaling
 {
+	my ($image, $zoom) = @_;
+
 	return 0 if $ini-> {Scaling} eq '0';
 	return 0 if $zoom == 1.0; # duh
 	
@@ -168,27 +170,45 @@ sub image_preferred_scaling
 	return $use_buffered_zoom;
 }
 
+sub image_prepare_scaled_buffer
+{
+	my ($image, $zoom, $scaling) = @_;
+
+	my $g;
+	if ( $scaling ne '1') {
+		$g = Prima::Image::Magick::prima_to_magick( $image);
+		$g-> Resize( 
+			width  => int($image-> width  * $zoom + .5),
+			height => int($image-> height * $zoom + .5),
+			filter => $ini-> {Scaling},
+		);
+		$g = $g-> Prima;
+	} else {
+		$g = $image-> dup;
+		$g-> size( int($image-> width * $zoom + .5), int($image-> height * $zoom + .5));
+	}
+
+	return $g;
+}
 
 sub image_reset_display_buffer
 {
-	my $scaling = image_preferred_scaling;
+	my $scaling = image_preferred_scaling($image, $zoom);
 
 	if ( $scaling ne '0') {
-		my $g;
-		if ( $scaling ne '1') {
-			$g = Prima::Image::Magick::prima_to_magick( $image);
-			$g-> Resize( 
-				width  => int($image-> width  * $zoom),
-				height => int($image-> height * $zoom),
-				filter => $ini-> {Scaling},
-			);
-			$g = $g-> Prima;
-		} else {
-			$g = $image-> dup;
-			$g-> size( int($image-> width * $zoom), int($image-> height * $zoom));
-		}
 		$iv-> zoom( 1.0);
-		$iv-> image( $g);
+		my $buffer;
+		if ( 
+			$preloaded{usable} and
+			$preloaded{buffer} and
+			$preloaded{zoom} == $zoom and
+			$preloaded{scaling} eq $scaling
+		) {
+			$buffer = $preloaded{buffer};
+		} else {
+			$buffer = image_prepare_scaled_buffer( $image, $zoom, $scaling);
+		}
+		$iv-> image( $buffer );
 		$use_prebuffered_zoom = 1;
 	} else {
 		$iv-> image( $image);
@@ -236,6 +256,8 @@ sub zoom_set
 # returns zoom factor required to fit the image to the given size
 sub zoom_from_window_size
 {
+	my $image = shift;
+
 	my @xs = @_;
 	my @is = $image-> size;
 	my @as = $iv-> get_active_area(2, @xs);
@@ -264,7 +286,7 @@ sub zoom_scale { zoom_set $zoom * shift }
 
 sub zoom_best_fit
 {
-	zoom_set( zoom_from_window_size( $iv-> size)) if $image;
+	zoom_set( zoom_from_window_size( $image, $iv-> size)) if $image;
 }
 
 sub convert_screen_to_point
@@ -447,6 +469,8 @@ sub update_window_title
 		);
 	my $infostr = "$tag_info$is_modified$str";
 
+	$infostr .= $preloaded{loading} if defined $preloaded{loading};
+
 	$w-> text( "FotoFix - $infostr");
 	$::application-> name( "FotoFix - $str");
 
@@ -553,7 +577,7 @@ sub update_window_size
 
 	if ( $ini->{WindowFit} and not $fullscreen) {
 		my @client = get_client_size();
-		my $z = zoom_from_window_size( @client);
+		my $z = zoom_from_window_size( $image, @client);
 		my @ivsize = map { int($z * $_ + .5)} $image-> size;
 		$w-> set(
 			size   => \@ivsize,
@@ -807,6 +831,8 @@ sub open_image
 {
 	return if $modified and not can_close_image();
 
+	%preloaded = ();
+
 	my $save = $image;
 
 	$open_dialog = Prima::ImageOpenDialog-> create(
@@ -862,12 +888,16 @@ sub open_new_image
 	my ( $fn, %opt) = @_;
 
 	my $save = $image;
-	my $i = Prima::Image-> new;
+	my $i;
 	my $ok;
 	my $reset_zoom = 1;
 	my $window_size_updated;
 
-	if ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
+	if ( $preloaded{usable} and $preloaded{image} ) {
+		$ok = 1;
+		$i = $preloaded{image};
+	} elsif ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
+		$i = Prima::Image-> new;
 		$image_is_loading++;
 		$iv-> watch_load_progress( $i);
 		my $id = $i-> add_notification( 'HeaderReady', sub {
@@ -881,6 +911,7 @@ sub open_new_image
 		$iv-> unwatch_load_progress;
 		$image_is_loading--;
 	} else {
+		$i = Prima::Image-> new;
 		$ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
 	}
 
@@ -915,6 +946,7 @@ sub open_new_image
 		my @r = $iv-> client_to_screen( 0, 0, $iv-> size);
 		$blend1 = $::application-> get_image( @r);
 		$image = $i;
+
 		image_reset_display_buffer(); # this is fast, zoom = 1
 
 		update_window_size();
@@ -939,13 +971,14 @@ sub open_new_image
 		animation_load($filename);
 
 	$image = $i;
-	my $save_scaling = $ini-> {Scaling};
+
+	my $save_scaling       = $ini-> {Scaling};
+	my $have_scaled_buffer = $preloaded{usable} && $preloaded{buffer};
+	my $delay_scaling      = $ini-> {DelayScaling} && $ini-> {Scaling} !~ /^[01]$/ && not $have_scaled_buffer;
 
 	unless ( $window_size_updated) {
-		$ini-> {Scaling} = $UseBufferedZoom 
-			if $ini-> {DelayScaling} and $ini-> {Scaling} !~ /^[01]$/;
+		$ini-> {Scaling} = $UseBufferedZoom if $delay_scaling; 
 		image_reset_display_buffer();
-
 		update_window_size();
 	}
 	update_window_title();
@@ -1043,6 +1076,65 @@ sub populate_next_image_cache
 	}
 }
 
+sub preload_next_file
+{
+	my $name = shift;
+	my $i    = Prima::Image-> new;
+
+	%preloaded = ( loading => ' .o' );
+	update_window_title;
+
+	my $ok = $i-> load($name, loadExtras => 1, wantFrames => 1);
+	%preloaded = ();
+	goto LEAVE unless $ok;
+
+	%preloaded = (
+		name  => $name,
+		image => $i,
+	);
+	
+	goto LEAVE if image_is_animation( $i );
+	
+	my $zoom;
+	if ( $ini-> {WindowFit} and not $fullscreen) {
+		$zoom = zoom_from_window_size( $i, get_client_size);
+	} elsif ( $ini-> {WindowFit} or $ini->{AutoBestFit}) {
+		$zoom = zoom_from_window_size( $i, $iv-> size);
+	} else {
+		goto LEAVE;
+	}
+
+	# try expensive preload scaling also
+	my $scaling = image_preferred_scaling( $ini-> {Scaling}, $zoom );
+	goto LEAVE if $scaling eq '0';
+
+	$preloaded{zoom}    = $zoom;
+	$preloaded{scaling} = $scaling;
+	$preloaded{loading} = ' .oO';
+	update_window_title;
+
+	$preloaded{buffer} = image_prepare_scaled_buffer( $i, $zoom, $scaling);
+	undef $preloaded{loading};
+
+LEAVE:
+	update_window_title;
+}
+
+sub try_preload_next_file
+{
+	return unless defined $filename;
+	return unless $ini-> {Preload};
+	
+	my ( $basedir, $index, @files) = get_dir_list();
+	$index = get_next_image_index( 1, \@files)
+		unless defined $index;
+	$index++;
+	return if $index > $#files;
+
+	my $try_preload = "$basedir/" . $files[$index];
+	preload_next_file($try_preload);
+}
+
 sub open_next_image
 {
 	my ( $self, $menu) = @_;
@@ -1055,6 +1147,8 @@ sub open_next_image
 
 	return message("No files found") unless @files;
 
+	my $try_preload;
+
 	if ( $menu eq 'prev') {
 		$index = get_next_image_index( 0, \@files)
 			unless defined $index;
@@ -1064,6 +1158,9 @@ sub open_next_image
 		} else {
 			$index--;
 		}
+
+		$try_preload = "$basedir/" . $files[$index-1]
+			if $ini-> {Preload} and $index > 0; 
 	} elsif ( $menu eq 'next') {
 		$index = get_next_image_index( 1, \@files)
 			unless defined $index;
@@ -1073,6 +1170,8 @@ sub open_next_image
 		} else {
 			$index++;
 		}
+		$try_preload = "$basedir/" . $files[$index+1]
+			if $ini-> {Preload} and $index < $#files;
 	} elsif ( $menu eq 'first') {
 		$index = 0;
 	} elsif ( $menu eq 'last') {
@@ -1080,13 +1179,22 @@ sub open_next_image
 	}
 
 	my $f = "$basedir/$files[$index]";
+
+	if (defined($preloaded{name}) and $preloaded{name} eq $f) {
+		$preloaded{usable} = 1;
+	} else {
+		%preloaded = ();
+	}
 	open_new_image($f);
 	last_file_replace($f);
+	%preloaded = ();
 
 	if ( $slideshow) {
 		$w-> SlideshowTimer-> stop;
 		$w-> SlideshowTimer-> start;
 	}
+
+	preload_next_file($try_preload) if defined $try_preload;
 }
 
 sub save_image
@@ -2857,6 +2965,7 @@ $ini = Prima::IniFile-> create(
 				AutoPosition => 0,
 				ShowPartial  => 1,
 				Cartesian    => 0,
+				Preload      => 1,
 				DelayScaling => 1,
 				Transition   => 'block',
 				Sorting      => 'alpha',
@@ -3041,7 +3150,7 @@ $w = Prima::Window-> create( menuItems => [
 			'DelayScaling', 'Delay slow ~scaling' => \&menuitem_toggle ],
 			) : (
 			['Install Prima::Image::Magick for more', sub{}]
-			)
+			),
 		]],
 		['animation' => '~Animation' => [
 			[ '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
@@ -3056,12 +3165,16 @@ $w = Prima::Window-> create( menuItems => [
 			[ 'tx_blend', '~Blend effect' => \&transition_set ],
 			[ 'tx_block', 'B~lock effect' => \&transition_set ],
 		]],
-		[ ( $ini->{AutoPosition} ? '*' : '') .
-		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
-		[ ( $ini->{ShowPartial} ? '*' : '') .
-		'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
-		[ ( $ini->{Cartesian} ? '*' : '') .
-		'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
+		['~Miscellaneous' => [
+			[ ( $ini->{AutoPosition} ? '*' : '') .
+			'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
+			[ ( $ini->{ShowPartial} ? '*' : '') .
+			'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
+			[ ( $ini->{Cartesian} ? '*' : '') .
+			'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
+			[ ( $ini->{Preload} ? '*' : '') .
+			'Preload',  '~Preload next/prev image' => \&menuitem_toggle ],
+		]],
 	]],
 	[],
 	['~Help' => [
@@ -3142,6 +3255,9 @@ last_file_add( $filename);
 
 $w-> show;
 $w-> select;
+$iv-> update_view;
+
+try_preload_next_file();
 
 # uncomment this for simple benchmarking
 # open_next_image($w,'next') for 0..20; exit; 
