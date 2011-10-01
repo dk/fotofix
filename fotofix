@@ -3057,7 +3057,10 @@ $w = Prima::Window-> create( menuItems => [
 			$::application-> Clipboard-> image(image_as_displayed());
 		}],
 		['copyname' => 'Copy path to file' => sub {
-			$::application-> Clipboard-> text(filename2tag( $filename));
+			my $fn = $filename;
+			eval { $fn = abs_path( $fn); };	
+			$fn =~ s/\//\\/g if $^O =~ /win32/i;
+			$::application-> Clipboard-> text($fn) if defined $fn;
 		}],
 		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
 			my $i = $::application-> Clipboard-> image;
