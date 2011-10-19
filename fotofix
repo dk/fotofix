@@ -2976,7 +2976,7 @@ $ini = Prima::IniFile-> create(
 )-> section('Main');
 			
 
-$w = Prima::Window-> create( menuItems => [
+$w = Prima::MainWindow-> create( menuItems => [
 	[ 'file' => '~File' => [
 		['open'   => '~Open image...'  => 'Ctrl+O'       => '^O' => \&open_image],
 		['reopen' => '~Reopen image...'=> 'Ctrl+Shift+O' => '^#O' => \&reopen_image],
