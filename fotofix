@@ -1105,7 +1105,7 @@ sub preload_next_file
 	}
 
 	# try expensive preload scaling also
-	my $scaling = image_preferred_scaling( $ini-> {Scaling}, $zoom );
+	my $scaling = image_preferred_scaling( $image, $zoom );
 	goto LEAVE if $scaling eq '0';
 
 	$preloaded{zoom}    = $zoom;
