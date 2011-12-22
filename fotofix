@@ -86,6 +86,7 @@ my $conversion_menuid = 'P';
 my %image_format_category = (
 	im::Color                    => '%06x',
 	im::GrayScale                => '%d',
+	im::GrayScale|im::SignedInt  => '%d',
 	im::GrayScale|im::RealNumber => '%g',
 );
 
@@ -1265,8 +1266,8 @@ sub image_info
 	my $cm = $i-> type & im::Category;
 	$e{'color model'} = 
 		( $cm == im::Color)      ? 'RGB' :
-		( $cm == im::GrayScale)  ? 'Gray scale' 
-		                         : 'Floating point';
+		( $cm &  im::GrayScale)  ? 'Gray scale'  :
+		                         'Floating point';
 
 	my @items;
 	for my $k ( sort keys %e) {
