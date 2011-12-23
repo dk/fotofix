@@ -426,7 +426,7 @@ sub update_window_title
 				$img-> width, $img-> height, $img-> type & im::BPP);
 		}
 	} else {
-		$str = '.Untitled';
+		$str = defined($filename) ? "$filename not loaded" : '.Untitled';
 	}
 
 	if ( $iv-> {drag} and $iv->{drag} == mb::Left) {
@@ -514,10 +514,9 @@ sub update_menu_status
 {
 	my $x = $image ? 1 : 0;
 	$menu-> enabled( $_ , $x) for qw(
-		next prev first last reopen
+		first last 
 		convert copy copybits view rotate effects
-		tag slideshow resize info
-		tcopy tmove tprefix trename tdelete texecute
+		slideshow resize info
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
@@ -526,9 +525,12 @@ sub update_menu_status
 	$menu-> enabled( $_, $x) for qw(crop redeyes);
 
 	$x = defined $filename;
-	$menu-> enabled( $_, $x) for qw(save delete copyname);
+	$menu-> enabled( $_, $x) for qw(
+		delete copyname next prev reopen
+		tag tcopy tmove tprefix trename tdelete texecute
+	);
 
-	$menu-> enabled('save',      $animation ? 0 : 1);
+	$menu-> enabled('save',      $animation ? 0 : (defined($filename) && defined($image)));
 	$menu-> enabled('saveas',    $animation ? 0 : $image);
 	$menu-> enabled('animation', $animation ? 1 : 0);
 }
@@ -1186,7 +1188,17 @@ sub open_next_image
 	} else {
 		%preloaded = ();
 	}
-	open_new_image($f);
+	my $loaded = open_new_image($f);
+
+	unless ( $loaded ) {
+		%preloaded = ();
+		close_image();
+		$filename = $f;
+		$iv-> image(undef);
+		update_window_title();
+		update_menu_status();
+	}
+
 	last_file_replace($f);
 	%preloaded = ();
 
