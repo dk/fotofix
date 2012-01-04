@@ -377,7 +377,7 @@ sub region_image
 
 sub draw_marquee
 {
-	my $o = $::application;
+	my $o = $fullscreen ? $iv : $::application; # hack for win7-aero
 	$o-> begin_paint;
 	$o-> rect_focus(
 		$iv-> client_to_screen(
