@@ -770,6 +770,8 @@ sub transition_block
 
 	my $s = 8;
 	my ( $X, $Y) = ( int( $blend1-> width / $s), int( $blend2-> height / $s));
+	$X++ if $blend1-> width % $s;
+	$Y++ if $blend1-> height % $s;
 	my $n = $X * $Y;
 	my @p = ((1) x $n);
 	my $left = $n;
