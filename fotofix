@@ -683,6 +683,23 @@ sub sorting_set
 	%neighbour_files_cache = ();
 }
 
+# occupy primary monitor only
+sub fullscreen_sizes
+{
+	if ( $::application->can('get_monitor_rects')) {
+		my $primary = $::application->get_monitor_rects->[0];
+		return (
+			origin => [@{$primary}[0,1]],
+			size   => [@{$primary}[2,3]],
+		);
+	} else {
+		return (
+			origin => [0,0],
+			size   => [$::application-> size],
+		);
+	}
+}
+
 # In X11 we can only guarantee fullscreen by creating a non-WM-manageable widget.
 # This is portable, but we cannot bring dialogs forward, so we must deal with it
 # by turning the fullscreen mode off
@@ -690,8 +707,7 @@ sub fullscreen_x11
 {
 	if ( shift) {
 		$iv-> set(
-			origin      => [0,0],
-			size        => [ $::application-> size],
+			fullscreen_sizes,
 			backColor   => cl::Black,
 			owner       => $::application,
 		);
@@ -713,8 +729,7 @@ sub fullscreen_win32
 	if ( shift) {
 		@window_rect = $w-> rect;
 		$w-> set(
-			origin      => [0,0],
-			size        => [ $::application-> size],
+			fullscreen_sizes,
 			backColor   => cl::Black,
 			borderIcons => 0,
 			borderStyle => bs::None,
