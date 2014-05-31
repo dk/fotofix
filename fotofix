@@ -72,7 +72,7 @@ my (
 	$current_pixel, %tags,
 	@max_window_size, @magnify_size,
 	$IPALoaded,
-	$open_dialog, $save_dialog, $chdir_dialog,
+	$open_dialog, $save_dialog, $chdir_dialog, $print_dialog,
 	$slideshow, $animation, $codecs, %preloaded,
 );
 
@@ -526,7 +526,7 @@ sub update_menu_status
 
 	$x = defined $filename;
 	$menu-> enabled( $_, $x) for qw(
-		delete copyname next prev reopen
+		delete copyname next prev reopen print
 		tag tcopy tmove tprefix trename tdelete texecute
 	);
 
@@ -1726,6 +1726,50 @@ sub do_execute
 
 sub files_execute { do_execute(1) }
 sub file_execute  { do_execute(0) }
+
+sub file_print
+{
+    return unless $image;
+
+	$print_dialog = Prima::PrintSetupDialog-> create unless $print_dialog;
+	return unless $print_dialog-> execute;
+	
+	my $p = $::application-> get_printer;
+	return unless $p-> begin_doc( $filename);
+
+    my ($iw, $ih, $pw, $ph) = ( $image->size, $p->size );
+    my $margin        = $pw / 24;
+    my $actual_pw     = $pw - $margin * 2;
+    my $actual_ph     = $ph - $margin * 2;
+    my $wzoom         = $actual_pw / $iw;
+    my $actual_ih     = $wzoom * $ih;
+    my $counter       = 0;
+    my $offset        = $actual_ih - $actual_ph;
+    my $pages         = 0;
+    
+    while ( 1 ) {
+        my $at_y = 0;
+        my $page_h = $actual_ph;
+        if ( $offset < 0 ) {
+            $page_h = $actual_ph + $offset;
+            $at_y = ($pages > 0) ? -$offset : ($ph - $page_h)/2;
+            $offset = 0;
+        }
+        $p->put_image_indirect( $image, 
+            $margin, $margin + $at_y,
+            0, $offset,
+            $actual_pw, $page_h, 
+            $iw, int( $page_h / $wzoom + 0.5 ),
+            rop::CopyPut);
+        $counter += $actual_ph;
+        $offset  -= $actual_ph;
+        last if $counter > $actual_ih;
+        $p->new_page;
+        $pages++;
+    }
+
+    $p->end_doc;
+}
 
 sub external_command_edit
 {{
@@ -3070,6 +3114,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 				]
 			} (1..9))
 		]],
+        ['print' => '~Print...' => 'Ctrl+P' => '^P' => \&file_print ],
 		[],
 		['E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
@@ -3258,6 +3303,7 @@ Prima::EventHook::install(
 	sub { 
 		fullscreen(0) if $fullscreen_x11;
 		slideshow_stop;
+        1;
 	},
 	event  => 'Execute',
 );
