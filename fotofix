@@ -89,6 +89,7 @@ my %image_format_category = (
 	im::GrayScale|im::SignedInt  => '%d',
 	im::GrayScale|im::RealNumber => '%g',
 );
+my $page_margin = '0.5 in';
 
 {
 	$_=<<DD;
@@ -1731,14 +1732,42 @@ sub file_print
 {
     return unless $image;
 
-	$print_dialog = Prima::PrintSetupDialog-> create unless $print_dialog;
+    unless ($print_dialog) {
+	    $print_dialog = Prima::PrintSetupDialog-> create( menuItems => [[
+            '~Set margins...' => sub {
+                while (1) {
+                    my $t = input_box(
+                        'Enter page margins',
+                        "F.ex '20 in' or '100 mm' or '50 px'",
+                        $page_margin,
+                    );
+                    last unless defined $t;
+                    message_box('Error', 'Wrong format'), next unless $t =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/i;
+                    $page_margin = lc $t;
+                    last;
+                }
+            },
+        ]]);
+    }
 	return unless $print_dialog-> execute;
 	
 	my $p = $::application-> get_printer;
-	return unless $p-> begin_doc( $filename);
+    return message_box('Printer error', $@) unless $p-> begin_doc( $filename);
 
     my ($iw, $ih, $pw, $ph) = ( $image->size, $p->size );
-    my $margin        = $pw / 24;
+    my ($dpi) = $p->resolution;
+    my %mul = (
+        in => $dpi,
+        mm => $dpi / 25.4,
+        px => 1,
+    );
+    $page_margin =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/;
+    my $margin        = $1 * $mul{$2};
+    if ( $margin > $iw / 2 || $margin > $ih / 2 ) {
+        $p->abort_doc;
+        return message_box('Error', 'Page margins are too big');
+    }
+
     my $actual_pw     = $pw - $margin * 2;
     my $actual_ph     = $ph - $margin * 2;
     my $wzoom         = $actual_pw / $iw;
