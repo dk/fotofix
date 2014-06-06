@@ -1786,7 +1786,7 @@ sub file_print
         }
         $p->put_image_indirect( $image, 
             $margin, $margin + $at_y,
-            0, $offset,
+            0, $offset / $wzoom,
             $actual_pw, $page_h, 
             $iw, int( $page_h / $wzoom + 0.5 ),
             rop::CopyPut);
