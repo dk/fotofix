@@ -812,9 +812,15 @@ sub transition_blend
 {
 	my ( $blend1, $blend2) = @_;
 
-	return if 
-		$blend1-> type != im::RGB or 
-		$blend2-> type != im::RGB;
+	unless ($blend1->type == im::RGB) {
+		$blend1 = $blend1->dup;
+		$blend1->type(im::RGB);
+	}
+	unless ($blend2->type == im::RGB) {
+		$blend2 = $blend2->dup;
+		$blend2->type(im::RGB);
+	}
+
 	require Time::HiRes;
 	for (1..15) {
 		my $t = Time::HiRes::time();
