@@ -1763,7 +1763,7 @@ sub file_print
     );
     $page_margin =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/;
     my $margin        = $1 * $mul{$2};
-    if ( $margin > $iw / 2 || $margin > $ih / 2 ) {
+    if ( $margin > $pw / 2 || $margin > $ph / 2 ) {
         $p->abort_doc;
         return message_box('Error', 'Page margins are too big');
     }
