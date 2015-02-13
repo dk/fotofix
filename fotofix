@@ -21,9 +21,9 @@ V
 
 use strict;
 use warnings;
-use Prima 1.26 qw(
+use Prima 1.41 qw(
 	Application ImageViewer StdDlg Utils
-	MsgBox IniFile EventHook ComboBox
+	MsgBox IniFile EventHook ComboBox Image::jpeg
 );
 use Cwd qw(getcwd abs_path);
 
@@ -900,7 +900,7 @@ sub open_image
 		image_is_animation($i) and
 		animation_load($filename);
 	
-	$image = $i;
+	$image = image_apply_transformations($i);
 	image_reset_display_buffer();
 	update_window_size();
 	update_window_title();
@@ -951,6 +951,8 @@ sub open_new_image
 		message( "Cannot load image $fn:$@");
 		return 0;
 	}
+
+	$i = image_apply_transformations($i);
 
 	# succeeded
 	my $there_was_image = $save ? 1 : 0;
@@ -2109,6 +2111,44 @@ sub image_rotate
 		die "invalid call to image_rotate:$d\n";
 	}
 	image_replace($i);
+}
+
+sub image_apply_transformations
+{
+	my $image = shift;
+
+	return $image unless $ini->{ExifOrientation};
+	return $image unless exists $image->{extras}->{codecID};
+	return $image unless Prima::Image->codecs->[ $image->{extras}->{codecID} ]->{fileShortType} eq 'JPEG';
+	return $image unless loadIPA;
+
+	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
+	return $image unless defined $orientation and $orientation > 1;
+
+#      1        2       3      4         5            6           7          8
+#
+#    888888  888888      88  88      8888888888  88                  88  8888888888
+#    88          88      88  88      88  88      88  88          88  88      88  88
+#    8888      8888    8888  8888    88          8888888888  8888888888          88
+#    88          88      88  88
+#    88          88  888888  888888
+	if ( $orientation == 2 ) {
+		$image = mirror( $image, type => 1);
+	} elsif ( $orientation == 3 ) {
+		$image = rotate180( $image );
+	} elsif ( $orientation == 4 ) {
+		$image = mirror( $image, type => 2);
+	} elsif ( $orientation == 5 ) {
+		$image = rotate90( mirror( $image, type => 2), 1 );
+	} elsif ( $orientation == 6 ) {
+		$image = rotate90( $image, 0 );
+	} elsif ( $orientation == 7 ) {
+		$image = rotate90( mirror( $image, type => 2), 1 );
+	} elsif ( $orientation == 8 ) {
+		$image = rotate90( $image, 1 );
+	}
+
+	return $image;
 }
 
 sub image_is_animation
@@ -3287,6 +3327,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 			'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
 			[ ( $ini->{Preload} ? '*' : '') .
 			'Preload',  '~Preload next/prev image' => \&menuitem_toggle ],
+			[ ( $UseIPA ? '' : '-' ) . ( $ini->{ExifOrientation} ? '*' : '') .
+			'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_toggle ],
 		]],
 	]],
 	[],
