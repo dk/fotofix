@@ -22,10 +22,13 @@ V
 use strict;
 use warnings;
 use Prima 1.41 qw(
-	Application ImageViewer StdDlg Utils
-	MsgBox IniFile EventHook ComboBox Image::jpeg
+	Application ImageViewer StdDlg Utils DetailedList Grids
+	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
+	VB::VBLoader Image::jpeg Image::AnimateGIF
 );
 use Cwd qw(getcwd abs_path);
+use File::Copy;
+use Time::HiRes;
 
 eval "use IPA;";
 my $UseIPA = not $@;
@@ -821,7 +824,6 @@ sub transition_blend
 		$blend2->type(im::RGB);
 	}
 
-	require Time::HiRes;
 	for (1..15) {
 		my $t = Time::HiRes::time();
 		$iv-> put_image( 0, 0, 
@@ -1281,7 +1283,6 @@ sub image_info
 	}
 	return unless $i;
 
-	require Prima::DetailedList;
 	$codecs ||= Prima::Image-> codecs;
 
 	my %e;
@@ -1504,10 +1505,6 @@ sub files_copy_move
 {
 	my ($op, $use_tags) = @_;
 	my $name = ucfirst $op;
-
-	require Prima::FileDialog;
-	eval { require File::Copy; };
-	return message( $@) if $@;
 
 	my @f = files_get_selection($use_tags);
 	return unless @f;
@@ -2161,9 +2158,6 @@ sub image_is_animation
 	return 0 unless                    # is it really libungif codec?
 		$c &&
 		$c-> {name} eq 'GIFLIB';
-	eval { require Prima::Image::AnimateGIF; };
-	message($@), return 0 if $@;
-
 	return 1;
 }
 
@@ -2508,8 +2502,6 @@ sub image_resize_calculate_placement
 
 sub image_resize
 {
-	require Prima::VB::VBLoader;
-
 	my %form;
 	my @is = ( $image-> width, $image-> height);
 	my @cm = $image-> colormap;
@@ -2849,9 +2841,6 @@ sub edit_palette
 		$image-> type( $image-> type & ~im::GrayScale);
 		$was_grayscale = 1;
 	}
-
-	require Prima::Grids;
-	require Prima::ColorDialog;
 
 	my $fh = $w-> font-> height;
 	my @ext = ( 16, 16);
