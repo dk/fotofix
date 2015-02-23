@@ -2117,10 +2117,7 @@ sub image_apply_transformations
 {
 	my $image = shift;
 
-	return $image unless $ini->{ExifOrientation};
-	return $image unless exists $image->{extras}->{codecID};
-	return $image unless Prima::Image->codecs->[ $image->{extras}->{codecID} ]->{fileShortType} eq 'JPEG';
-	return $image unless loadIPA;
+	return $image unless $ini->{ExifOrientation} and loadIPA;
 
 	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
 	return $image unless defined $orientation and $orientation > 1;
