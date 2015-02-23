@@ -2123,6 +2123,7 @@ sub image_apply_transformations
 	return $image unless loadIPA;
 
 	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
+	warn $orientation;
 	return $image unless defined $orientation and $orientation > 1;
 
 #      1        2       3      4         5            6           7          8
@@ -2139,11 +2140,11 @@ sub image_apply_transformations
 	} elsif ( $orientation == 4 ) {
 		$image = mirror( $image, type => 2);
 	} elsif ( $orientation == 5 ) {
-		$image = rotate90( mirror( $image, type => 2), 1 );
+		$image = mirror( rotate90( $image, 0 ), type => 1);
 	} elsif ( $orientation == 6 ) {
 		$image = rotate90( $image, 0 );
 	} elsif ( $orientation == 7 ) {
-		$image = rotate90( mirror( $image, type => 2), 1 );
+		$image = mirror( rotate90( $image, 0 ), type => 2);
 	} elsif ( $orientation == 8 ) {
 		$image = rotate90( $image, 1 );
 	}
