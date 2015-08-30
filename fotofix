@@ -1460,6 +1460,54 @@ sub open_next_tagged_image
 	last_file_replace($f);
 }
 
+sub latest_dirs { grep {defined } map { $ini->{'LastDir' . ($_+1) } } 0 .. $MaxLastFiles - 1 }
+
+sub latest_dirs_update
+{
+	my $self = shift;
+	my $menu = $self->menu;
+	my $x = $menu-> get_items('recent');
+	if ( $x) {
+		$menu-> remove( $_-> [0]) for @$x;
+	}
+	
+	my @latest = latest_dirs;
+	my $hotkey = 1;
+	my @set;
+	for ( my $i = 0; $i < @latest; $i++) {
+		my $dir = $latest[$i];
+		push @set, [ $dir, "Ctrl+$hotkey", "^$hotkey", sub { shift->directory($dir) } ];
+		$hotkey++;
+	}
+	$menu-> insert( \@set, 'recent', 0) if @set;
+}
+
+sub create_chdir_dialog
+{
+	Prima::ChDirDialog-> new(
+		menuItems => [
+			[ 'recent' => '~Recent' => [
+				[]
+			]],
+		],
+		onCreate   => sub {
+			latest_dirs_update( shift );
+		},
+		onEndModal => sub {
+			my $self = shift;
+			return if $self->modalResult != mb::OK;
+			my @latest = latest_dirs;
+			my $d = $self->directory;
+			push @latest, $d if 0 == grep { $_ eq $d } @latest;
+			shift @latest if @latest > $MaxLastFiles;
+			for ( my $i = 0; $i < @latest; $i++) {
+				$ini->{'LastDir' . ($i+1)} = $latest[$i];
+			}
+			latest_dirs_update( $self );
+		},
+	)
+}
+
 sub files_get_selection
 {
 	my $use_tags = shift;
@@ -1508,7 +1556,7 @@ sub files_copy_move
 
 	my @f = files_get_selection($use_tags);
 	return unless @f;
-	$chdir_dialog = Prima::ChDirDialog-> new()
+	$chdir_dialog = create_chdir_dialog
 		unless $chdir_dialog;
 	$chdir_dialog-> set(
 		text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
