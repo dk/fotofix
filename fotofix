@@ -2886,7 +2886,7 @@ sub image_apply_gray_operator(&)
 	my @images;
 
 	if ( $image->type == im::Byte) {
-		@images = ($image);
+		@images = ($image->dup);
 	} elsif ( $image->type == im::RGB ) {
 		push @images, @{split_channels( $image)};
 	} elsif ( $image-> type & im::GrayScale ) {
@@ -2903,6 +2903,7 @@ sub image_apply_gray_operator(&)
 
 	if (@images == 3) {
 		for (@images) {
+			next if $_->type == im::Byte;
 			$_->resample($_->rangeLo, $_->rangeHi, 0, 255);
 			$_->type(im::Byte);
 		}
@@ -2910,6 +2911,7 @@ sub image_apply_gray_operator(&)
 	} else {
 		$image = $images[0];
 	}
+
 	image_replace($image);
 }
 
@@ -2928,7 +2930,6 @@ sub image_gamma
 	my $orig = $image-> dup;
 
 	my $mod = $modified;
-	image_apply_gray_operator { gamma( shift, origGamma => 1.0 ) };
 
 	my $title = 'Gamma value (exp): ';
 	my $ok = image_preview_dialog( $title,
@@ -2947,6 +2948,66 @@ sub image_gamma
 				$image = $orig;
 				image_apply_gray_operator { gamma( shift, origGamma => $value) };
 			}
+		],
+	);
+
+	unless ($ok) {
+		image_replace($orig);
+		$modified = $mod;
+		update_window_title();
+	}
+}
+
+sub image_multiply
+{
+	return unless loadIPA;
+
+	my $orig = $image-> dup;
+
+	my $mod = $modified;
+
+	my $title = 'Multiply';
+
+	my $change = sub {
+		my $self = shift->owner;
+		my $a = exp($self->A->value);
+		my $b = $self->B->value;
+		$self->text( sprintf("y=%.3fx%s%.1f", $a, ($b >= 0) ? '+' : '', $b ));
+		$image = $orig;
+		image_apply_gray_operator { 
+			my $i = shift;
+			$i->type(im::Float);
+			$i = ab( $i, $a, $b );
+			$i = threshold( $i, preserve => 1, minvalue => 0,  maxvalue => 1e37, false => 0 );
+			$i = threshold( $i, preserve => 1, minvalue => -1, maxvalue => 255,  false => 255 );
+			$i->type(im::Byte);
+			return $i;
+		};
+	};
+
+	my $ok = image_preview_dialog( $title,
+		[ Slider => 
+			name      => 'A',
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => -2,
+			max       => 2,
+			increment => 1,
+			step      => 0.001,
+			value     => 0,
+			scheme    => ss::Thermometer,
+			onChange  => $change,
+		],
+		[ Slider => 
+			name      => 'B',
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => -256,
+			max       => 256,
+			value     => 0,
+			increment => 64,
+			scheme    => ss::Thermometer,
+			onChange  => $change,
 		],
 	);
 
@@ -3506,6 +3567,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['equalize' => '~Equalize' => \&image_equalize ],
 			['~Gamma...' => \&image_gamma ],
 			['Convol~utions...' => \&image_convolutions ],
+			['~Brigthess/constrast...' => \&image_multiply ],
 		]],
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
