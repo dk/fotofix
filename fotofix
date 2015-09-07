@@ -2972,20 +2972,51 @@ sub image_multiply
 		my $self = shift->owner;
 		my $a = exp($self->A->value);
 		my $b = $self->B->value;
-		$self->text( sprintf("y=%.3fx%s%.1f", $a, ($b >= 0) ? '+' : '', $b ));
+		my $min = $self->Min->value;
+		my $max = $self->Max->value;
+		$self->text( sprintf("y=$min|%.3fx%s%.1f|$max", $a, ($b >= 0) ? '+' : '', $b ));
 		$image = $orig;
 		image_apply_gray_operator { 
 			my $i = shift;
 			$i->type(im::Float);
 			$i = ab( $i, $a, $b );
-			$i = threshold( $i, preserve => 1, minvalue => 0,  maxvalue => 1e37, false => 0 );
-			$i = threshold( $i, preserve => 1, minvalue => -1, maxvalue => 255,  false => 255 );
+			$i = threshold( $i, preserve => 1, minvalue => $min,  maxvalue => 1e37, false => 0 );
+			$i = threshold( $i, preserve => 1, minvalue => -1, maxvalue => $max,  false => 255 );
 			$i->type(im::Byte);
 			return $i;
 		};
+		$self->Histogram->repaint;
 	};
 
 	my $ok = image_preview_dialog( $title,
+		[ Widget =>
+			name      => 'Histogram',
+			height    => 100,
+			width     => 256,
+			pack      => { side => 'top' },
+			onPaint   => sub {
+				my ( $self, $canvas ) = @_;
+				$canvas->clear;
+				my @img;
+				if ( $image->type == im::Byte ) {
+					push @img, cl::Black, $image;
+				} else {
+					my ( $r, $g, $b ) = @{split_channels($image)};
+					push @img, cl::LightRed, $r, cl::LightGreen, $g, cl::Blue, $b;
+				}
+				for ( my $i = 0; $i < @img; $i += 2) {
+					$canvas->color( $img[$i] );
+					my @h = map { $_ ? log : 0 } histogram($img[$i+1]);
+					my $max = 0;
+					for (@h) {
+						$max = $_ if $max < $_;
+					}
+					my $j = 0;
+					$canvas->lines([ map { ++$j, 0, $j, $_ * 100 / $max } @h ]);
+					$canvas->rop(rop::OrPut);
+				}
+			},
+		],
 		[ Slider => 
 			name      => 'A',
 			pack      => { side => 'top', fill => 'x' },
@@ -2998,6 +3029,10 @@ sub image_multiply
 			scheme    => ss::Thermometer,
 			onChange  => $change,
 		],
+		[ Label  => 
+			pack      => { side => 'top', fill => 'x', padx => 10, },
+			text      => 'Brightness',
+		],			
 		[ Slider => 
 			name      => 'B',
 			pack      => { side => 'top', fill => 'x' },
@@ -3009,6 +3044,40 @@ sub image_multiply
 			scheme    => ss::Thermometer,
 			onChange  => $change,
 		],
+		[ Label  => 
+			pack      => { side => 'top', fill => 'x', padx => 10 },
+			text      => 'Contrast',
+		],			
+		[ Slider => 
+			name      => 'Min',
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => 0,
+			max       => 256,
+			value     => 0,
+			increment => 64,
+			scheme    => ss::Axis,
+			onChange  => $change,
+		],
+		[ Label  => 
+			pack      => { side => 'top', fill => 'x', padx => 10 },
+			text      => 'Minimal threshold',
+		],			
+		[ Slider => 
+			name      => 'Max',
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => 0,
+			max       => 256,
+			value     => 255,
+			increment => 64,
+			scheme    => ss::Axis,
+			onChange  => $change,
+		],
+		[ Label  => 
+			pack      => { side => 'top', fill => 'x', padx => 10 },
+			text      => 'Maximal threshold',
+		],			
 	);
 
 	unless ($ok) {
