@@ -149,6 +149,7 @@ sub loadIPA
 	require IPA::Misc;     IPA::Misc->     import('/./');
 	require IPA::Point;    IPA::Point->    import('/./'); 
 	require IPA::Geometry; IPA::Geometry-> import('/./'); 
+	require IPA::Local;    IPA::Local->    import('/./'); 
 
 	$IPALoaded++;
 	return 1;
@@ -2152,6 +2153,79 @@ sub image_convert
 	image_replace( $image);
 }
 
+sub image_preview_dialog
+{
+	my ($title, @objects) = @_;
+
+	my $dlg = Prima::Dialog->create( 
+		text        => $title, 
+		centered    => 1, 
+		borderStyle => bs::Sizeable 
+	);
+	@objects = $dlg->insert(@objects) if @objects;
+
+	my $w = $dlg->insert( Widget => 
+		pack  => {
+			side     => 'bottom',
+			fill     => 'x',
+			padx     => 10,
+			pady     => 10,
+		}
+	);
+	$w->insert( Button => 
+		text    => '~Cancel',
+		onClick => sub { $dlg-> cancel },
+		pack    => { side => 'right', padx => 10 },
+	);
+	$w->insert( Button => 
+		text    => '~Ok',
+		default => 1,
+		onClick => sub { $dlg-> ok },
+		pack    => { side => 'right', padx => 10 },
+	);
+
+	return $dlg->execute == mb::OK;
+}
+
+sub image_convert_mono
+{
+	return unless loadIPA;
+
+	my $orig = $image-> dup;
+	my $gray = $image;
+	unless ( $gray->type == im::Byte ) {
+		$gray = $image->dup;
+		$gray->type(im::Byte);
+	}
+
+	my $mod = $modified;
+	image_replace( threshold( $gray, minvalue => 128 ));
+
+	my $title = 'Convert to monochrome';
+	my $ok = image_preview_dialog( $title,
+		[ Slider => 
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => 0,
+			max       => 256,
+			value     => 128,
+			scheme    => ss::Thermometer,
+			increment => 32,
+			onChange  => sub { 
+				my $self  = shift;
+				$self->owner->text( $title . ' ' . $self->value );
+				image_replace( threshold( $gray, minvalue => $self->value ));
+			}
+		],
+	);
+
+	unless ($ok) {
+		image_replace($orig);
+		$modified = $mod;
+		update_window_title();
+	}
+}
+
 sub image_rotate
 {
 	return unless loadIPA;
@@ -2805,12 +2879,135 @@ sub image_remove_red_eyes
 	image_replace($image);
 }
 
+sub image_apply_gray_operator(&)
+{
+	my $operator = shift;
+
+	my @images;
+
+	if ( $image->type == im::Byte) {
+		@images = ($image);
+	} elsif ( $image->type == im::RGB ) {
+		push @images, @{split_channels( $image)};
+	} elsif ( $image-> type & im::GrayScale ) {
+		$image = $image->dup;
+		$image->type(im::Byte);
+		push @images, $image;
+	} else {
+		$image = $image->dup;
+		$image->type(im::RGB);
+		push @images, @{split_channels( $image)};
+	}
+
+	$_ = $operator->($_) for @images;
+
+	if (@images == 3) {
+		for (@images) {
+			$_->resample($_->rangeLo, $_->rangeHi, 0, 255);
+			$_->type(im::Byte);
+		}
+		$image = combine_channels(\@images, 'rgb');
+	} else {
+		$image = $images[0];
+	}
+	image_replace($image);
+}
+
 sub image_equalize
 {
 	return unless loadIPA;
 	return message('Can only work on grayscale 8-bit images') 
 		if $image-> type != im::Byte;
-	image_replace_region( IPA::Point::equalize( region_image()));
+	image_replace_region( equalize( region_image()));
+}
+
+sub image_gamma
+{
+	return unless loadIPA;
+
+	my $orig = $image-> dup;
+
+	my $mod = $modified;
+	image_apply_gray_operator { gamma( shift, origGamma => 1.0 ) };
+
+	my $title = 'Gamma value (exp): ';
+	my $ok = image_preview_dialog( $title,
+		[ Slider => 
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => -5,
+			max       => 2,
+			increment => 1,
+			step      => 0.001,
+			scheme    => ss::Thermometer,
+			onChange  => sub { 
+				my $self  = shift;
+				my $value = exp($self->value);
+				$self->owner->text( $title . ' ' .  sprintf("%.3f", $value ));
+				$image = $orig;
+				image_apply_gray_operator { gamma( shift, origGamma => $value) };
+			}
+		],
+	);
+
+	unless ($ok) {
+		image_replace($orig);
+		$modified = $mod;
+		update_window_title();
+	}
+}
+
+sub image_convolutions
+{
+	return unless loadIPA;
+	return message('Image too small') if $image->width < 3 || $image->height < 3;
+
+	my $orig = $image-> dup;
+
+	my $mod = $modified;
+	my $kernel_size = 11;
+
+	image_apply_gray_operator { convolution( shift, gaussian( $kernel_size, 4 )) };
+
+	my $title = 'Gaussian blur';
+
+	my $change = sub {
+		my $self = shift->owner;
+		my $sigma = $self->Sigma->value;
+		my $kernel;
+		my $method = ( $self->Laplacian->checked ) ? 'laplacian' : 'gaussian';
+		$self->text( "\u$method blur " . sprintf("%.2f", $sigma ));
+		$kernel = IPA::Local->can($method)->( $kernel_size, $sigma );
+		$image = $orig;
+		image_apply_gray_operator { convolution( shift, $kernel ) };
+	};
+
+	my $ok = image_preview_dialog( $title,
+		[ Slider => 
+			name      => 'Sigma',
+			pack      => { side => 'top', fill => 'x' },
+			width     => 400,
+			min       => 1,
+			max       => 5,
+			increment => 1,
+			step      => 0.1,
+			value     => 4,
+			scheme    => ss::Axis,
+			onChange  => $change,
+		],
+		[ CheckBox => 
+			name      => 'Laplacian',
+			text      => '~Laplacian',
+			pack      => { side => 'top', fill => 'x' },
+			onClick  => $change,
+		],
+	);
+
+	unless ($ok) {
+		image_replace($orig);
+		$modified = $mod;
+		update_window_title();
+	}
 }
 
 sub magnify
@@ -3282,6 +3479,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		[],
 		[ 'convert' => 'Con~vert to'=> [
 			['~Monochrome' => sub {image_convert(im::Mono)}],
+			['Monochrome by ~threshold....' => \&image_convert_mono],
 			['~16 colors'  => sub {image_convert(im::bpp4)}],
 			['~256 colors' => sub {image_convert(im::bpp8)}],
 			['~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
@@ -3306,6 +3504,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['~Invert' => \&image_invert ],
 			['-redeyes' => '~Remove red eyes' => 'Alt+R' => '@R' => \&image_remove_red_eyes ],
 			['equalize' => '~Equalize' => \&image_equalize ],
+			['~Gamma...' => \&image_gamma ],
+			['Convol~utions...' => \&image_convolutions ],
 		]],
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
