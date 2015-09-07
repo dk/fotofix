@@ -2159,7 +2159,6 @@ sub image_preview_dialog
 
 	my $dlg = Prima::Dialog->create( 
 		text        => $title, 
-		centered    => 1, 
 		borderStyle => bs::Sizeable 
 	);
 	@objects = $dlg->insert(@objects) if @objects;
@@ -2183,6 +2182,8 @@ sub image_preview_dialog
 		onClick => sub { $dlg-> ok },
 		pack    => { side => 'right', padx => 10 },
 	);
+
+	$dlg->centered(1);
 
 	return $dlg->execute == mb::OK;
 }
@@ -2934,7 +2935,7 @@ sub image_gamma
 	my $title = 'Gamma value (exp): ';
 	my $ok = image_preview_dialog( $title,
 		[ Slider => 
-			pack      => { side => 'top', fill => 'x' },
+			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
 			width     => 400,
 			min       => -5,
 			max       => 2,
@@ -2966,7 +2967,7 @@ sub image_multiply
 
 	my $mod = $modified;
 
-	my $title = 'Multiply';
+	my $title = 'Contrast and brightness';
 
 	my $change = sub {
 		my $self = shift->owner;
@@ -2974,7 +2975,7 @@ sub image_multiply
 		my $b = $self->B->value;
 		my $min = $self->Min->value;
 		my $max = $self->Max->value;
-		$self->text( sprintf("y=$min|%.3fx%s%.1f|$max", $a, ($b >= 0) ? '+' : '', $b ));
+		$self->text( sprintf("y=$min < %.3fx%s%.1f < $max", $a, ($b >= 0) ? '+' : '', $b ));
 		$image = $orig;
 		image_apply_gray_operator { 
 			my $i = shift;
@@ -2992,11 +2993,17 @@ sub image_multiply
 		[ Widget =>
 			name      => 'Histogram',
 			height    => 100,
-			width     => 256,
-			pack      => { side => 'top' },
+			width     => 258,
+			pack      => { side => 'top', pady => 10 },
+			buffered  => 1,
+			backColor => cl::White,
+			color     => cl::Black,
 			onPaint   => sub {
 				my ( $self, $canvas ) = @_;
 				$canvas->clear;
+				$canvas->rectangle(0,0,$canvas->width-1,$canvas->height-1);
+				$canvas->clipRect(1,1,256,99);
+				$canvas->translate(1,1);
 				my @img;
 				if ( $image->type == im::Byte ) {
 					push @img, cl::Black, $image;
@@ -3004,22 +3011,31 @@ sub image_multiply
 					my ( $r, $g, $b ) = @{split_channels($image)};
 					push @img, cl::LightRed, $r, cl::LightGreen, $g, cl::Blue, $b;
 				}
+				my @d = (0) x 256;
 				for ( my $i = 0; $i < @img; $i += 2) {
+					my @l;
 					$canvas->color( $img[$i] );
 					my @h = map { $_ ? log : 0 } histogram($img[$i+1]);
 					my $max = 0;
 					for (@h) {
 						$max = $_ if $max < $_;
 					}
-					my $j = 0;
-					$canvas->lines([ map { ++$j, 0, $j, $_ * 100 / $max } @h ]);
-					$canvas->rop(rop::OrPut);
+					for ( my $j = 0; $j < @h; $j++) {
+						my $y = $h[$j] * 100 / $max / (@img / 2);
+						push @l, $j, $d[$j], $j, $d[$j] + $y;
+						$d[$j] += $y;
+					}
+					$canvas->lines(\@l);
 				}
 			},
 		],
+		[ Label  => 
+			pack      => { side => 'top', fill => 'x', padx => 10, },
+			text      => 'Contrast',
+		],			
 		[ Slider => 
 			name      => 'A',
-			pack      => { side => 'top', fill => 'x' },
+			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
 			width     => 400,
 			min       => -2,
 			max       => 2,
@@ -3035,7 +3051,7 @@ sub image_multiply
 		],			
 		[ Slider => 
 			name      => 'B',
-			pack      => { side => 'top', fill => 'x' },
+			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
 			width     => 400,
 			min       => -256,
 			max       => 256,
@@ -3046,11 +3062,11 @@ sub image_multiply
 		],
 		[ Label  => 
 			pack      => { side => 'top', fill => 'x', padx => 10 },
-			text      => 'Contrast',
+			text      => 'Minimal threshold',
 		],			
 		[ Slider => 
 			name      => 'Min',
-			pack      => { side => 'top', fill => 'x' },
+			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
 			width     => 400,
 			min       => 0,
 			max       => 256,
@@ -3061,11 +3077,11 @@ sub image_multiply
 		],
 		[ Label  => 
 			pack      => { side => 'top', fill => 'x', padx => 10 },
-			text      => 'Minimal threshold',
+			text      => 'Maximal threshold',
 		],			
 		[ Slider => 
 			name      => 'Max',
-			pack      => { side => 'top', fill => 'x' },
+			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
 			width     => 400,
 			min       => 0,
 			max       => 256,
@@ -3074,10 +3090,6 @@ sub image_multiply
 			scheme    => ss::Axis,
 			onChange  => $change,
 		],
-		[ Label  => 
-			pack      => { side => 'top', fill => 'x', padx => 10 },
-			text      => 'Maximal threshold',
-		],			
 	);
 
 	unless ($ok) {
