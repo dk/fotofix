@@ -524,6 +524,7 @@ sub update_menu_status
 	);
 
 	$menu-> enabled( 'palette', $image && (($image-> type & im::BPP) <= 8));
+	$menu-> enabled( 'equalize', $image && ($image-> type == im::Byte));
 
 	$x &&= $region;
 	$menu-> enabled( $_, $x) for qw(crop redeyes);
@@ -2793,6 +2794,18 @@ sub image_remove_red_eyes
 	image_replace($image);
 }
 
+sub image_equalize
+{
+	return unless loadIPA;
+
+	return message('Can only work on grayscale 8-bit images') 
+		if $image-> type != im::Byte;
+	my $i = IPA::Point::equalize(region_image());
+	$image-> put_image( @$region[0,1], $i);
+	undef $region;
+	image_replace($image);
+}
+
 sub magnify
 {
 	my ($show, $scale) = @_;
@@ -3285,6 +3298,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		['effects' => '~Effects' => [
 			['~Invert' => \&image_invert ],
 			['-redeyes' => '~Remove red eyes' => 'Alt+R' => '@R' => \&image_remove_red_eyes ],
+			['equalize' => '~Equalize' => \&image_equalize ],
 		]],
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
