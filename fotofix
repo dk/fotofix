@@ -244,6 +244,17 @@ sub image_replace
 	update_menu_status();
 	update_window_size() unless $eq;
 }
+	
+sub image_replace_region
+{
+	my $i = shift;
+	if ( $region ) {
+		$image-> put_image( @$region[0,1], $i);
+		image_replace($image);
+	} else {
+		image_replace($i);
+	}
+}	
 
 sub zoom_set
 {
@@ -2797,13 +2808,9 @@ sub image_remove_red_eyes
 sub image_equalize
 {
 	return unless loadIPA;
-
 	return message('Can only work on grayscale 8-bit images') 
 		if $image-> type != im::Byte;
-	my $i = IPA::Point::equalize(region_image());
-	$image-> put_image( @$region[0,1], $i);
-	undef $region;
-	image_replace($image);
+	image_replace_region( IPA::Point::equalize( region_image()));
 }
 
 sub magnify
