@@ -21,7 +21,7 @@ V
 
 use strict;
 use warnings;
-use Prima 1.41 qw(
+use Prima 1.44 qw(
 	Application ImageViewer StdDlg Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
 	VB::VBLoader Image::jpeg Image::AnimateGIF
@@ -2120,35 +2120,9 @@ sub conversion_set
 sub image_convert
 {
 	my $type = shift;
-
-	my %set;
-	unless ( $type) {
-		my $now_colors = 
-			( $image-> get_bpp > 8) ? 256 : 
-			scalar $image-> colormap;
-		my $colors = input_box(
-			'Convert image',
-			'Reduce colors to (2-256):',
-			$now_colors, mb::OkCancel
-		);
-		return unless defined $colors and length $colors;
-		message("Number required"), redo unless $colors =~ /^\d+(\.\d+)?$/;
-		message("Value between 2 and 256"), redo unless $colors >= 2 and $colors <= 256;
-		return if $colors == $now_colors;
-		$set{palette} = $colors;
-		if ( $colors > 16) {
-			$type = 8;
-		} elsif ( $colors > 2) {
-			$type = 4;
-		} else {
-			$type = 1;
-		}
-	}
-
 	$image-> set(
 		conversion => $conversion,
 		type       => $type,
-		%set,
 	);
 	image_replace( $image);
 }
@@ -2161,6 +2135,7 @@ sub image_preview_dialog
 		text        => $title, 
 		borderStyle => bs::Sizeable,
 		visible     => 0,
+		packPropagate => 0,
 	);
 	@objects = $dlg->insert(@objects) if @objects;
 
@@ -2184,10 +2159,88 @@ sub image_preview_dialog
 		pack    => { side => 'right', padx => 10 },
 	);
 
+	$dlg->packPropagate(1);
 	$dlg->centered(1);
+	$dlg->show;
 
-	return $dlg->execute == mb::OK;
+	my $r = $dlg->execute == mb::OK;
+	return $r;
 }
+
+sub image_convert_colors
+{
+	my $orig = $image-> dup;
+
+	my $mod = $modified;
+	my @conv = ( ict::None, ict::Ordered, ict::ErrorDiffusion, ict::Optimized );
+	my @text = ('No halftoning', 'Ordered', 'Error diffusion', 'Optimized');
+	my $current;
+	for ( my $i = 0; $i < @conv; $i++) {
+		$current = $text[$i] if $conversion == $conv[$i];
+	}
+
+	my $change = sub {
+		my $self  = shift->owner;
+		my $colors = $self->Colors->value;
+		$self->text( "$colors colors" );
+		my %set = ( 
+			palette    => $colors,
+			conversion => $conv[$self->Conversion->focusedItem],
+		);
+		if ( $colors > 16) {
+			$set{type} = 8;
+		} elsif ( $colors > 2) {
+			$set{type} = 4;
+		} else {
+			$set{type} = 1;
+		}
+		$image = $orig->dup;
+		$image-> set( %set );
+		image_replace( $image);
+	};
+
+
+	my $ok = image_preview_dialog( 'Convert image',
+		[ Label    => 
+			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			text      => '~Conversion',
+			focusLink => 'Conversion',
+		],
+		[ ComboBox => 
+			name      => 'Conversion',
+			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			width     => 400,
+			height    => $w->font->height + 4,
+			style     => cs::DropDownList,
+			items     => \@text,
+			text      => $current,
+			onChange  => $change,
+		],
+		[ Label    => 
+			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			text      => '~Number of colors',
+			focusLink => 'Colors',
+		],
+		[ Slider => 
+			name      => 'Colors',
+			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			width     => 400,
+			min       => 2,
+			max       => 256,
+			value     => (( $image-> get_bpp > 8) ? 256 : scalar $image-> colormap),
+			scheme    => ss::Thermometer,
+			increment => 32,
+			onChange  => $change,
+		],
+	);
+
+	unless ($ok) {
+		image_replace($orig);
+		$modified = $mod;
+		update_window_title();
+	}
+}
+
 
 sub image_convert_mono
 {
@@ -3033,7 +3086,8 @@ sub image_multiply
 		],
 		[ Label  => 
 			pack      => { side => 'top', fill => 'x', padx => 10, },
-			text      => 'Contrast',
+			text      => '~Contrast',
+			focusLink => 'A',
 		],			
 		[ Slider => 
 			name      => 'A',
@@ -3049,7 +3103,8 @@ sub image_multiply
 		],
 		[ Label  => 
 			pack      => { side => 'top', fill => 'x', padx => 10, },
-			text      => 'Brightness',
+			text      => '~Brightness',
+			focusLink => 'B',
 		],			
 		[ Slider => 
 			name      => 'B',
@@ -3064,7 +3119,8 @@ sub image_multiply
 		],
 		[ Label  => 
 			pack      => { side => 'top', fill => 'x', padx => 10 },
-			text      => 'Minimal threshold',
+			text      => '~Minimal threshold',
+			focusLink => 'Min',
 		],			
 		[ Slider => 
 			name      => 'Min',
@@ -3079,7 +3135,8 @@ sub image_multiply
 		],
 		[ Label  => 
 			pack      => { side => 'top', fill => 'x', padx => 10 },
-			text      => 'Maximal threshold',
+			text      => 'Ma~ximal threshold',
+			focusLink => 'Max',
 		],			
 		[ Slider => 
 			name      => 'Max',
@@ -3628,7 +3685,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['~256 colors' => sub {image_convert(im::bpp8)}],
 			['~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
 			['~RGB'        => sub {image_convert(im::RGB)}],
-			['~Custom...'  => sub {image_convert(0)}],
+			['~Custom...'  => \&image_convert_colors],
 			[],
 			['N' => '~No halftoning'   => \&conversion_set],
 			['O' => '~Ordered'         => \&conversion_set],
