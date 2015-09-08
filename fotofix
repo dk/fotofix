@@ -3005,16 +3005,16 @@ sub image_multiply
 		[ Widget =>
 			name      => 'Histogram',
 			height    => 100,
-			width     => 258,
-			pack      => { side => 'top', pady => 10 },
+			pack      => { side => 'top', pady => 10, fill => 'x' },
 			buffered  => 1,
 			backColor => cl::White,
 			color     => cl::Black,
 			onPaint   => sub {
 				my ( $self, $canvas ) = @_;
+				my $w = $canvas->width;
 				$canvas->clear;
-				$canvas->rectangle(0,0,$canvas->width-1,$canvas->height-1);
-				$canvas->clipRect(1,1,256,99);
+				$canvas->rectangle(0,0,$w-1,$canvas->height-1);
+				$canvas->clipRect(1,1,$w-2,98);
 				$canvas->translate(1,1);
 				my @img;
 				if ( $image->type == im::Byte ) {
@@ -3024,6 +3024,7 @@ sub image_multiply
 					push @img, cl::LightRed, $r, cl::LightGreen, $g, cl::Blue, $b;
 				}
 				my @d = (0) x 256;
+				my $dw = ( $w - 2 ) / 256;
 				for ( my $i = 0; $i < @img; $i += 2) {
 					my @l;
 					$canvas->color( $img[$i] );
@@ -3034,10 +3035,10 @@ sub image_multiply
 					}
 					for ( my $j = 0; $j < @h; $j++) {
 						my $y = $h[$j] * 100 / $max / (@img / 2);
-						push @l, $j, $d[$j], $j, $d[$j] + $y;
+						push @l, $dw*$j, $d[$j], $dw*($j+1)-1, $d[$j] + $y;
 						$d[$j] += $y;
 					}
-					$canvas->lines(\@l);
+					$canvas->bars(\@l);
 				}
 			},
 		],
