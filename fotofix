@@ -2975,6 +2975,7 @@ sub image_multiply
 		my $b = $self->B->value;
 		my $min = $self->Min->value;
 		my $max = $self->Max->value;
+		$max = 255 if $max > 255; # 256 is there only for beauty of a slider
 		$self->text( sprintf("y=$min < %.3fx%s%.1f < $max", $a, ($b >= 0) ? '+' : '', $b ));
 		$image = $orig;
 		image_apply_gray_operator { 
