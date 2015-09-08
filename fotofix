@@ -190,8 +190,7 @@ sub image_prepare_scaled_buffer
 		);
 		$g = $g-> Prima;
 	} else {
-		$g = $image-> dup;
-		$g-> size( int($image-> width * $zoom + .5), int($image-> height * $zoom + .5));
+		$g = $image-> clone( size => [ int($image-> width * $zoom + .5), int($image-> height * $zoom + .5)]);
 	}
 
 	return $g;
@@ -703,18 +702,11 @@ sub sorting_set
 # occupy primary monitor only
 sub fullscreen_sizes
 {
-	if ( $::application->can('get_monitor_rects')) {
-		my $primary = $::application->get_monitor_rects->[0];
-		return (
-			origin => [@{$primary}[0,1]],
-			size   => [@{$primary}[2,3]],
-		);
-	} else {
-		return (
-			origin => [0,0],
-			size   => [$::application-> size],
-		);
-	}
+	my $primary = $::application->get_monitor_rects->[0];
+	return (
+		origin => [@{$primary}[0,1]],
+		size   => [@{$primary}[2,3]],
+	);
 }
 
 # In X11 we can only guarantee fullscreen by creating a non-WM-manageable widget.
@@ -829,12 +821,10 @@ sub transition_blend
 	my ( $blend1, $blend2) = @_;
 
 	unless ($blend1->type == im::RGB) {
-		$blend1 = $blend1->dup;
-		$blend1->type(im::RGB);
+		$blend1 = $blend1->clone( type => im::RGB );
 	}
 	unless ($blend2->type == im::RGB) {
-		$blend2 = $blend2->dup;
-		$blend2->type(im::RGB);
+		$blend2 = $blend2->clone( type => im::RGB );
 	}
 
 	for (1..15) {
@@ -1796,74 +1786,74 @@ sub file_execute  { do_execute(0) }
 
 sub file_print
 {
-    return unless $image;
+	return unless $image;
 
-    unless ($print_dialog) {
-	    $print_dialog = Prima::PrintSetupDialog-> create( menuItems => [[
-            '~Set margins...' => sub {
-                while (1) {
-                    my $t = input_box(
-                        'Enter page margins',
-                        "F.ex '20 in' or '100 mm' or '50 px'",
-                        $page_margin,
-                    );
-                    last unless defined $t;
-                    message_box('Error', 'Wrong format'), next unless $t =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/i;
-                    $page_margin = lc $t;
-                    last;
-                }
-            },
-        ]]);
-    }
+	unless ($print_dialog) {
+		$print_dialog = Prima::PrintSetupDialog-> create( menuItems => [[
+			'~Set margins...' => sub {
+				while (1) {
+					my $t = input_box(
+						'Enter page margins',
+						"F.ex '20 in' or '100 mm' or '50 px'",
+						$page_margin,
+					);
+					last unless defined $t;
+					message_box('Error', 'Wrong format'), next unless $t =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/i;
+					$page_margin = lc $t;
+					last;
+				}
+			},
+		]]);
+	}
 	return unless $print_dialog-> execute;
 	
 	my $p = $::application-> get_printer;
-    return message_box('Printer error', $@) unless $p-> begin_doc( $filename);
+	return message_box('Printer error', $@) unless $p-> begin_doc( $filename);
 
-    my ($iw, $ih, $pw, $ph) = ( $image->size, $p->size );
-    my ($dpi) = $p->resolution;
-    my %mul = (
-        in => $dpi,
-        mm => $dpi / 25.4,
-        px => 1,
-    );
-    $page_margin =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/;
-    my $margin        = $1 * $mul{$2};
-    if ( $margin > $pw / 2 || $margin > $ph / 2 ) {
-        $p->abort_doc;
-        return message_box('Error', 'Page margins are too big');
-    }
+	my ($iw, $ih, $pw, $ph) = ( $image->size, $p->size );
+	my ($dpi) = $p->resolution;
+	my %mul = (
+		in => $dpi,
+		mm => $dpi / 25.4,
+		px => 1,
+	);
+	$page_margin =~ /^(\d+(?:\.\d+)?)\s+(in|mm|px)$/;
+	my $margin		  = $1 * $mul{$2};
+	if ( $margin > $pw / 2 || $margin > $ph / 2 ) {
+		$p->abort_doc;
+		return message_box('Error', 'Page margins are too big');
+	}
 
-    my $actual_pw     = $pw - $margin * 2;
-    my $actual_ph     = $ph - $margin * 2;
-    my $wzoom         = $actual_pw / $iw;
-    my $actual_ih     = $wzoom * $ih;
-    my $counter       = 0;
-    my $offset        = $actual_ih - $actual_ph;
-    my $pages         = 0;
-    
-    while ( 1 ) {
-        my $at_y = 0;
-        my $page_h = $actual_ph;
-        if ( $offset < 0 ) {
-            $page_h = $actual_ph + $offset;
-            $at_y = ($pages > 0) ? -$offset : ($ph - $page_h)/2;
-            $offset = 0;
-        }
-        $p->put_image_indirect( $image, 
-            $margin, $margin + $at_y,
-            0, $offset / $wzoom,
-            $actual_pw, $page_h, 
-            $iw, int( $page_h / $wzoom + 0.5 ),
-            rop::CopyPut);
-        $counter += $actual_ph;
-        $offset  -= $actual_ph;
-        last if $counter > $actual_ih;
-        $p->new_page;
-        $pages++;
-    }
+	my $actual_pw	  = $pw - $margin * 2;
+	my $actual_ph	  = $ph - $margin * 2;
+	my $wzoom		  = $actual_pw / $iw;
+	my $actual_ih	  = $wzoom * $ih;
+	my $counter		  = 0;
+	my $offset		  = $actual_ih - $actual_ph;
+	my $pages		  = 0;
+	
+	while ( 1 ) {
+		my $at_y = 0;
+		my $page_h = $actual_ph;
+		if ( $offset < 0 ) {
+			$page_h = $actual_ph + $offset;
+			$at_y = ($pages > 0) ? -$offset : ($ph - $page_h)/2;
+			$offset = 0;
+		}
+		$p->put_image_indirect( $image, 
+			$margin, $margin + $at_y,
+			0, $offset / $wzoom,
+			$actual_pw, $page_h, 
+			$iw, int( $page_h / $wzoom + 0.5 ),
+			rop::CopyPut);
+		$counter += $actual_ph;
+		$offset  -= $actual_ph;
+		last if $counter > $actual_ih;
+		$p->new_page;
+		$pages++;
+	}
 
-    $p->end_doc;
+	$p->end_doc;
 }
 
 sub external_command_edit
@@ -2129,7 +2119,10 @@ sub image_convert
 
 sub image_preview_dialog
 {
-	my ($title, @objects) = @_;
+	my ($orig, $title, @objects) = @_;
+	
+	my $mod = $modified;
+	animation_close();
 
 	my $dlg = Prima::Dialog->create( 
 		text        => $title, 
@@ -2143,8 +2136,7 @@ sub image_preview_dialog
 		pack  => {
 			side     => 'bottom',
 			fill     => 'x',
-			padx     => 10,
-			pady     => 10,
+			pad      => 10,
 		}
 	);
 	$w->insert( Button => 
@@ -2163,15 +2155,17 @@ sub image_preview_dialog
 	$dlg->centered(1);
 	$dlg->show;
 
-	my $r = $dlg->execute == mb::OK;
-	return $r;
+	if ( $dlg->execute != mb::OK ) {
+		image_replace($orig);
+		$modified = $mod;
+		update_window_title();
+	}
 }
 
 sub image_convert_colors
 {
 	my $orig = $image-> dup;
 
-	my $mod = $modified;
 	my @conv = ( ict::None, ict::Ordered, ict::ErrorDiffusion, ict::Optimized );
 	my @text = ('No halftoning', 'Ordered', 'Error diffusion', 'Optimized');
 	my $current;
@@ -2183,32 +2177,23 @@ sub image_convert_colors
 		my $self  = shift->owner;
 		my $colors = $self->Colors->value;
 		$self->text( "$colors colors" );
-		my %set = ( 
+		image_replace( $image-> clone(
 			palette    => $colors,
 			conversion => $conv[$self->Conversion->focusedItem],
-		);
-		if ( $colors > 16) {
-			$set{type} = 8;
-		} elsif ( $colors > 2) {
-			$set{type} = 4;
-		} else {
-			$set{type} = 1;
-		}
-		$image = $orig->dup;
-		$image-> set( %set );
-		image_replace( $image);
+			type       => ( $colors > 16 ) ? 8 : (( $colors > 2 ) ? 4 : 1),
+		));
 	};
 
 
-	my $ok = image_preview_dialog( 'Convert image',
+	image_preview_dialog( $orig, 'Convert image',
 		[ Label    => 
-			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			pack      => { side => 'top', fill => 'x', pad => 10 },
 			text      => '~Conversion',
 			focusLink => 'Conversion',
 		],
 		[ ComboBox => 
 			name      => 'Conversion',
-			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			pack      => { side => 'top', fill => 'x', pad => 10 },
 			width     => 400,
 			height    => $w->font->height + 4,
 			style     => cs::DropDownList,
@@ -2217,13 +2202,13 @@ sub image_convert_colors
 			onChange  => $change,
 		],
 		[ Label    => 
-			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			pack      => { side => 'top', fill => 'x', pad => 10 },
 			text      => '~Number of colors',
 			focusLink => 'Colors',
 		],
 		[ Slider => 
 			name      => 'Colors',
-			pack      => { side => 'top', fill => 'x', padx => 10, pady => 10 },
+			pack      => { side => 'top', fill => 'x', pad => 10 },
 			width     => 400,
 			min       => 2,
 			max       => 256,
@@ -2233,12 +2218,6 @@ sub image_convert_colors
 			onChange  => $change,
 		],
 	);
-
-	unless ($ok) {
-		image_replace($orig);
-		$modified = $mod;
-		update_window_title();
-	}
 }
 
 
@@ -2253,11 +2232,10 @@ sub image_convert_mono
 		$gray->type(im::Byte);
 	}
 
-	my $mod = $modified;
 	image_replace( threshold( $gray, minvalue => 128 ));
 
 	my $title = 'Convert to monochrome';
-	my $ok = image_preview_dialog( $title,
+	image_preview_dialog( $orig, $title,
 		[ Slider => 
 			pack      => { side => 'top', fill => 'x' },
 			width     => 400,
@@ -2273,12 +2251,6 @@ sub image_convert_mono
 			}
 		],
 	);
-
-	unless ($ok) {
-		image_replace($orig);
-		$modified = $mod;
-		update_window_title();
-	}
 }
 
 sub image_rotate
@@ -2893,14 +2865,12 @@ sub image_remove_red_eyes
 	my ( $G, $B);
 
 	if ( $RedEyesHueDiff < 0.9999 or $RedEyesHueDiff > 1.001) {
-		$G = $g-> dup;
-		$g-> type(im::Short);
+		$G = $g-> clone( type => im::Short );
 		$g = ab( $g, $RedEyesHueDiff, 0);
 		$g = threshold( $g, false => 255, maxvalue => 255, preserve => 1);
 		$g-> type(im::Byte);
 
-		$B = $b-> dup;
-		$b-> type(im::Short);
+		$B = $b-> clone( type => im::Short );
 		$b = ab( $b, $RedEyesHueDiff, 0);
 		$b = threshold( $b, false => 255, maxvalue => 255, preserve => 1);
 		$b-> type(im::Byte);
@@ -2945,12 +2915,10 @@ sub image_apply_gray_operator(&)
 	} elsif ( $image->type == im::RGB ) {
 		push @images, @{split_channels( $image)};
 	} elsif ( $image-> type & im::GrayScale ) {
-		$image = $image->dup;
-		$image->type(im::Byte);
+		$image = $image->clone( type => im::Byte );
 		push @images, $image;
 	} else {
-		$image = $image->dup;
-		$image->type(im::RGB);
+		$image = $image->clone( type => im::RGB );
 		push @images, @{split_channels( $image)};
 	}
 
@@ -2984,12 +2952,10 @@ sub image_gamma
 
 	my $orig = $image-> dup;
 
-	my $mod = $modified;
-
 	my $title = 'Gamma value (exp): ';
-	my $ok = image_preview_dialog( $title,
+	image_preview_dialog( $orig, $title,
 		[ Slider => 
-			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
+			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
 			min       => -5,
 			max       => 2,
@@ -3005,12 +2971,6 @@ sub image_gamma
 			}
 		],
 	);
-
-	unless ($ok) {
-		image_replace($orig);
-		$modified = $mod;
-		update_window_title();
-	}
 }
 
 sub image_multiply
@@ -3018,9 +2978,6 @@ sub image_multiply
 	return unless loadIPA;
 
 	my $orig = $image-> dup;
-
-	my $mod = $modified;
-
 	my $title = 'Contrast and brightness';
 
 	my $change = sub {
@@ -3044,7 +3001,7 @@ sub image_multiply
 		$self->Histogram->repaint;
 	};
 
-	my $ok = image_preview_dialog( $title,
+	image_preview_dialog( $orig, $title,
 		[ Widget =>
 			name      => 'Histogram',
 			height    => 100,
@@ -3091,7 +3048,7 @@ sub image_multiply
 		],			
 		[ Slider => 
 			name      => 'A',
-			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
+			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
 			min       => -2,
 			max       => 2,
@@ -3108,7 +3065,7 @@ sub image_multiply
 		],			
 		[ Slider => 
 			name      => 'B',
-			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
+			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
 			min       => -256,
 			max       => 256,
@@ -3124,7 +3081,7 @@ sub image_multiply
 		],			
 		[ Slider => 
 			name      => 'Min',
-			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
+			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
 			min       => 0,
 			max       => 256,
@@ -3140,7 +3097,7 @@ sub image_multiply
 		],			
 		[ Slider => 
 			name      => 'Max',
-			pack      => { side => 'top', fill => 'x', pady => 10, padx => 10, },
+			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
 			min       => 0,
 			max       => 256,
@@ -3150,12 +3107,6 @@ sub image_multiply
 			onChange  => $change,
 		],
 	);
-
-	unless ($ok) {
-		image_replace($orig);
-		$modified = $mod;
-		update_window_title();
-	}
 }
 
 sub image_convolutions
@@ -3165,7 +3116,6 @@ sub image_convolutions
 
 	my $orig = $image-> dup;
 
-	my $mod = $modified;
 	my $kernel_size = 11;
 
 	image_apply_gray_operator { convolution( shift, gaussian( $kernel_size, 4 )) };
@@ -3183,7 +3133,7 @@ sub image_convolutions
 		image_apply_gray_operator { convolution( shift, $kernel ) };
 	};
 
-	my $ok = image_preview_dialog( $title,
+	image_preview_dialog( $orig, $title,
 		[ Slider => 
 			name      => 'Sigma',
 			pack      => { side => 'top', fill => 'x' },
@@ -3203,12 +3153,6 @@ sub image_convolutions
 			onClick  => $change,
 		],
 	);
-
-	unless ($ok) {
-		image_replace($orig);
-		$modified = $mod;
-		update_window_title();
-	}
 }
 
 sub magnify
