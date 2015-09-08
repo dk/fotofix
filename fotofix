@@ -2159,7 +2159,8 @@ sub image_preview_dialog
 
 	my $dlg = Prima::Dialog->create( 
 		text        => $title, 
-		borderStyle => bs::Sizeable 
+		borderStyle => bs::Sizeable,
+		visible     => 0,
 	);
 	@objects = $dlg->insert(@objects) if @objects;
 
@@ -3649,7 +3650,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['equalize' => '~Equalize' => \&image_equalize ],
 			['~Gamma...' => \&image_gamma ],
 			['Convol~utions...' => \&image_convolutions ],
-			['~Brigthess/constrast...' => \&image_multiply ],
+			['~Brigthess/constrast...' => 'Alt+B' => '@B' => \&image_multiply ],
 		]],
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
