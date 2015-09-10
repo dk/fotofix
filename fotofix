@@ -3017,11 +3017,13 @@ sub image_multiply
 				$canvas->clipRect(1,1,$w-2,98);
 				$canvas->translate(1,1);
 				my @img;
-				if ( $image->type == im::Byte ) {
-					push @img, cl::Black, $image;
-				} else {
+				if ( $image->type & im::Color ) {
+					$image = $image->clone(type => im::RGB) unless $image->type == im::RGB;
 					my ( $r, $g, $b ) = @{split_channels($image)};
 					push @img, cl::LightRed, $r, cl::LightGreen, $g, cl::Blue, $b;
+				} else {
+					$image = $image->clone(type => im::Byte) unless $image->type == im::Byte;
+					push @img, cl::Black, $image;
 				}
 				my @d = (0) x 256;
 				my $dw = ( $w - 2 ) / 256;
