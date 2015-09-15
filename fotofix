@@ -2289,7 +2289,7 @@ sub image_apply_transformations
 	my $image = shift;
 	return $image unless $ini->{ExifOrientation};
 	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
-	Prima::Image::jpeg::exif_transform_image($orientation);
+	Prima::Image::jpeg::exif_transform_image($image, $orientation);
 	return $image;
 }
 
