@@ -2299,35 +2299,10 @@ sub image_rotate
 sub image_apply_transformations
 {
 	my $image = shift;
-
-	return $image unless $ini->{ExifOrientation} and loadIPA;
-
+	return $image unless $ini->{ExifOrientation};
 	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
-	return $image unless defined $orientation and $orientation > 1;
-
-#      1        2       3      4         5            6           7          8
-#
-#    888888  888888      88  88      8888888888  88                  88  8888888888
-#    88          88      88  88      88  88      88  88          88  88      88  88
-#    8888      8888    8888  8888    88          8888888888  8888888888          88
-#    88          88      88  88
-#    88          88  888888  888888
-	if ( $orientation == 2 ) {
-		$image = mirror( $image, type => 1);
-	} elsif ( $orientation == 3 ) {
-		$image = rotate180( $image );
-	} elsif ( $orientation == 4 ) {
-		$image = mirror( $image, type => 2);
-	} elsif ( $orientation == 5 ) {
-		$image = mirror( rotate90( $image, 0 ), type => 1);
-	} elsif ( $orientation == 6 ) {
-		$image = rotate90( $image, 0 );
-	} elsif ( $orientation == 7 ) {
-		$image = mirror( rotate90( $image, 0 ), type => 2);
-	} elsif ( $orientation == 8 ) {
-		$image = rotate90( $image, 1 );
-	}
-
+	warn $orientation if $orientation;
+	Prima::Image::jpeg::exif_transform_image($orientation);
 	return $image;
 }
 
