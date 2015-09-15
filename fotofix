@@ -3828,7 +3828,9 @@ update_menu_tags();
 update_window_title();
 update_window_size();
 if ( @ARGV) {
-	if ( -f $ARGV[0]) {
+	if ( $ARGV[0] =~ /^https?:/ ) {
+		open_url( $ARGV[0] );
+	} elsif ( -f $ARGV[0]) {
 		open_new_image( $ARGV[0]);
 	} elsif ( -d $ARGV[0]) {
 		$filename = "$ARGV[0]/.";
