@@ -77,6 +77,7 @@ my (
 	$IPALoaded,
 	$open_dialog, $save_dialog, $chdir_dialog, $print_dialog,
 	$slideshow, $animation, $codecs, %preloaded,
+	$ua,
 );
 
 my $zoom = 1.0;
@@ -917,8 +918,9 @@ sub open_image
 
 sub open_new_image
 {
-	my ( $fn, %opt) = @_;
+	my ( $handle, %opt) = @_;
 
+	my $fn   = $opt{filename} // $handle;
 	my $save = $image;
 	my $i;
 	my $ok;
@@ -938,13 +940,13 @@ sub open_new_image
 			update_window_size;
 			$reset_zoom = 0;
 		});
-		$ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
+		$ok = $i-> load($handle, loadExtras => 1, wantFrames => 1);
 		$i-> remove_notification( $id);
 		$iv-> unwatch_load_progress;
 		$image_is_loading--;
 	} else {
 		$i = Prima::Image-> new;
-		$ok = $i-> load($fn, loadExtras => 1, wantFrames => 1);
+		$ok = $i-> load($handle, loadExtras => 1, wantFrames => 1);
 	}
 
 	# failed
@@ -1040,6 +1042,29 @@ sub open_new_image
 sub reopen_image
 {
 	open_new_image($filename) if $filename
+}
+
+sub open_url
+{
+	my $url = shift;
+	require LWP::Simple;
+	require LWP::UserAgent;
+	$w->text("Fetching $url...");
+	$ua //= LWP::UserAgent->new( agent => "fotofox v$VERSION" );
+	my $response = $ua->get($url);
+	return message("Failed: " . $response->status_line) unless $response->is_success;
+	my ($content, $handle) = ($response->decoded_content);
+	return message("Error: $!") unless open $handle, '<', \$content;
+	$url =~ s[.*\/][];
+	$url =~ s[\?.*][];
+	open_new_image( $handle, filename => $url );
+	$modified = 1;
+}
+
+sub open_url_dialog
+{
+	my $cmd = input_box( 'Open image from URL', 'URL:', '', mb::OkCancel);
+	open_url($cmd) if defined $cmd;
 }
 
 sub get_dir_list
@@ -3528,6 +3553,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 	[ 'file' => '~File' => [
 		['open'   => '~Open image...'  => 'Ctrl+O'       => '^O' => \&open_image],
 		['reopen' => '~Reopen image...'=> 'Ctrl+Shift+O' => '^#O' => \&reopen_image],
+		[            'Open ~URL...'                               => \&open_url_dialog],
 		['save'   => '~Save image'     => 'Ctrl+S'       => '^S' => \&save_image],
 		['saveas' => 'S~ave as...'     => 'Ctrl+Shift+S' => '^#S'=> \&save_image_as],
 		['info'   => '~Information...' =>                        => \&image_info],
