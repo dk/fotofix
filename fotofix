@@ -62,7 +62,7 @@ my $RedEyesHueDiff = 1.0;
 my @MagnifyingGlassSize   = (302,202);
 
 my $ImageScalingDelay = 100;
-my $MaxLastFiles = 5;
+my $MaxLastFiles = 10;
 
 my ( 
 	$w, $menu, $iv, $image,
@@ -1514,6 +1514,34 @@ sub create_chdir_dialog
 {
 	Prima::ChDirDialog-> new(
 		menuItems => [
+			[ '~File' => [
+				[ '~New folder...' => 'F7', 'F7', sub {
+					my $self = shift;
+					my $dir = input_box(
+						'New folder',
+						'Create new folder:',
+						'New folder',
+						mb::OkCancel
+					);
+					return unless defined $dir;
+					$dir = $self-> directory . '/' . $dir;
+					if ( mkdir $dir ) {
+						$self->Dir->new_directory;
+					} else {
+						message("Cannot create folder:$!");
+					}
+				} ],
+				[ '~Change to...' => 'Ctrl+L', '^L', sub {
+					my $self = shift;
+					my $dir = input_box(
+						'Change folder',
+						'Enter new folder path',
+						'',
+						mb::OkCancel
+					);
+					$self->directory($dir) if defined $dir;
+				} ],
+			]],
 			[ 'recent' => '~Recent' => [
 				[]
 			]],
@@ -2290,6 +2318,7 @@ sub image_apply_transformations
 	return $image unless $ini->{ExifOrientation};
 	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
 	Prima::Image::jpeg::exif_transform_image($image, $orientation);
+	Prima::Image::jpeg::exif_clear_orientation($image); # for consistent rotation if saving
 	return $image;
 }
 
