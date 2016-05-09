@@ -676,6 +676,15 @@ sub fitting_set
 	update_window_size();
 }
 
+sub fitting_set_size
+{
+	my ( $axis ) = @_;
+	return unless $image;
+	my @size = $iv->size;
+	$size[$axis] = 1_000_000_000;
+	zoom_set( zoom_from_window_size( $image, @size));
+}
+
 sub scaling_set
 {
 	my ( $self, $type) = @_;
@@ -3702,6 +3711,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 		],[ ( $ini->{ImageFit} ? '*' : '') .
 		'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
 		],
+		[ 'Fit to ~width' => sub { fitting_set_size(1) } ],
+		[ 'Fit to ~height' => sub { fitting_set_size(0) } ],
 		['~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
 		[],
 		[ 'S~caling' => [
