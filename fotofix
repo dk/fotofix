@@ -24,7 +24,7 @@ use warnings;
 use Prima 1.44 qw(
 	Application ImageViewer StdDlg Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
-	VB::VBLoader Image::jpeg Image::AnimateGIF
+	VB::VBLoader Image::AnimateGIF
 );
 use Cwd qw(getcwd abs_path);
 use File::Copy;
@@ -869,6 +869,15 @@ sub close_image
 	%neighbour_files_cache = ();
 }
 
+sub load_params
+{
+	return (
+		wantFrames     => 1,
+		loadExtras     => 1,
+		exifTransform  => $ini->{ExifOrientation} ? "wipe" : "none",
+	);
+}
+
 sub open_image
 {
 	return if $modified and not can_close_image();
@@ -888,9 +897,8 @@ sub open_image
 
 	$image_is_loading++;
 	my $i = $open_dialog-> load( 
+		load_params,
 		progressViewer => $iv, 
-		wantFrames     => 1,
-		loadExtras     => 1,
 	);
 	$image_is_loading--;
 	unless ($i) {
@@ -915,7 +923,7 @@ sub open_image
 		image_is_animation($i) and
 		animation_load($filename);
 	
-	$image = image_apply_transformations($i);
+	$image = $i;
 	image_reset_display_buffer();
 	update_window_size();
 	update_window_title();
@@ -949,13 +957,13 @@ sub open_new_image
 			update_window_size;
 			$reset_zoom = 0;
 		});
-		$ok = $i-> load($handle, loadExtras => 1, wantFrames => 1);
+		$ok = $i-> load($handle, load_params);
 		$i-> remove_notification( $id);
 		$iv-> unwatch_load_progress;
 		$image_is_loading--;
 	} else {
 		$i = Prima::Image-> new;
-		$ok = $i-> load($handle, loadExtras => 1, wantFrames => 1);
+		$ok = $i-> load($handle, load_params);
 	}
 
 	# failed
@@ -967,8 +975,6 @@ sub open_new_image
 		message( "Cannot load image $fn:$@");
 		return 0;
 	}
-
-	$i = image_apply_transformations($i);
 
 	# succeeded
 	my $there_was_image = $save ? 1 : 0;
@@ -1152,7 +1158,7 @@ sub preload_next_file
 	%preloaded = ( loading => ' .o' );
 	update_window_title;
 
-	my $ok = $i-> load($name, loadExtras => 1, wantFrames => 1);
+	my $ok = $i-> load($name, load_params);
 	%preloaded = ();
 	goto LEAVE unless $ok;
 
@@ -2319,16 +2325,6 @@ sub image_rotate
 {
 	$image->rotate(shift);
 	image_replace($image);
-}
-
-sub image_apply_transformations
-{
-	my $image = shift;
-	return $image unless $ini->{ExifOrientation};
-	my $orientation = Prima::Image::jpeg::exif_get_orientation($image);
-	Prima::Image::jpeg::exif_transform_image($image, $orientation);
-	Prima::Image::jpeg::exif_clear_orientation($image); # for consistent rotation if saving
-	return $image;
 }
 
 sub image_is_animation
@@ -3758,7 +3754,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
 			[ ( $ini->{Preload} ? '*' : '') .
 			'Preload',  '~Preload next/prev image' => \&menuitem_toggle ],
-			[ ( $UseIPA ? '' : '-' ) . ( $ini->{ExifOrientation} ? '*' : '') .
+			[ ( $ini->{ExifOrientation} ? '*' : '') .
 			'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_toggle ],
 		]],
 	]],
