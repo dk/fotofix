@@ -14,10 +14,6 @@ V
 # IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/IPA-1.03.tar.gz 
 #    (or http://prima.eu.org/IPA/IPA-1.03.tar.gz if CPAN refuses)
 #
-# Prima::Image::Magick:
-#	http://search.cpan.org/~karasik/Prima-Image-Magick-0.02
-#  
-
 
 use strict;
 use warnings;
@@ -32,9 +28,6 @@ use Time::HiRes;
 
 eval "use IPA;";
 my $UseIPA = not $@;
-
-eval "use Prima::Image::Magick;";
-my $UseImageMagick = not $@;
 
 $__V =~ /v ([\d.]+)/;
 my $VERSION = $1;
@@ -94,6 +87,11 @@ my %image_format_category = (
 	im::GrayScale|im::RealNumber => '%g',
 );
 my $page_margin = '0.5 in';
+my %scalings;
+for ( keys %ist:: ) {
+	next if /^(AUTOLOAD|Constant|None|Box[XY])$/i;
+	$scalings{$_} = &{$ist::{$_}}();
+}
 
 {
 	$_=<<DD;
@@ -125,10 +123,7 @@ sub create_pointer
 	return if $p[0] <= $i-> width or $p[1] <= $i-> height; # let Prima deal with funky sizes
 
 	# here, we just enlarge the icon without stretching
-	$i-> set(
-		hScaling => 0,
-		vScaling => 0,
-	);
+	$i-> scaling(ist::None);
 	my ( $x, $a) = $i-> split;
 	my $aa = $a-> dup;
 	$_-> size( @p) for $x, $aa;
@@ -160,13 +155,13 @@ sub image_preferred_scaling
 {
 	my ($image, $zoom) = @_;
 
-	return 0 if $ini-> {Scaling} eq '0';
-	return 0 if $zoom == 1.0; # duh
+	return '0' if $ini-> {Scaling} eq '0';
+	return '0' if $zoom == 1.0; # duh
 	
 	# no point in replotting expensive scaling on each image read
-	return 0 if $image_is_loading; 
+	return '0' if $image_is_loading; 
 
-	return $ini-> {Scaling} if $ini-> {Scaling} ne '1';
+	return $ini-> {Scaling} if $ini-> {Scaling} ne 'Box';
 
 	my $use_buffered_zoom = $UseBufferedZoom;
 	my @as = $::application-> size;
@@ -174,27 +169,17 @@ sub image_preferred_scaling
 		$zoom * $image-> width  > $as[0] or
 		$zoom * $image-> height > $as[1];
 
-	return $use_buffered_zoom;
+	return $use_buffered_zoom ? 'Box' : '0';
 }
 
 sub image_prepare_scaled_buffer
 {
 	my ($image, $zoom, $scaling) = @_;
 
-	my $g;
-	if ( $scaling ne '1') {
-		$g = Prima::Image::Magick::prima_to_magick( $image);
-		$g-> Resize( 
-			width  => int($image-> width  * $zoom + .5),
-			height => int($image-> height * $zoom + .5),
-			filter => $ini-> {Scaling},
-		);
-		$g = $g-> Prima;
-	} else {
-		$g = $image-> clone( size => [ int($image-> width * $zoom + .5), int($image-> height * $zoom + .5)]);
-	}
-
-	return $g;
+	return $image-> clone( 
+		size    => [ int($image-> width * $zoom + .5), int($image-> height * $zoom + .5)],
+		scaling => $scalings{$scaling},
+	);
 }
 
 sub image_reset_display_buffer
@@ -1025,10 +1010,10 @@ sub open_new_image
 
 	my $save_scaling       = $ini-> {Scaling};
 	my $have_scaled_buffer = $preloaded{usable} && $preloaded{buffer};
-	my $delay_scaling      = $ini-> {DelayScaling} && $ini-> {Scaling} !~ /^[01]$/ && not $have_scaled_buffer;
+	my $delay_scaling      = $ini-> {DelayScaling} && $ini-> {Scaling} !~ /^(0|Box)$/ && not $have_scaled_buffer;
 
 	unless ( $window_size_updated) {
-		$ini-> {Scaling} = $UseBufferedZoom if $delay_scaling; 
+		$ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0' if $delay_scaling; 
 		image_reset_display_buffer();
 		update_window_size();
 	}
@@ -2746,12 +2731,7 @@ sub image_resize
 			$form{Width}-> notify(qw(Change)) if shift-> checked
 		}},
 		Scaling      => { 
-			items => [
-				'Nearest neighborhood',
-				$UseImageMagick ? ( qw( Quadratic Cubic Triangle 
-				Hermite Hanning Hamming Blackman Gaussian 
-				Catrom Mitchell Lanczos Bessel Sinc)) : (),
-			],
+			items => [ sort { $scalings{$a} <=> $scalings{$b} } keys %scalings ], 
 			text  => $ini-> {Scaling},
 		},
 		Display      => { onPaint  => sub {
@@ -2803,17 +2783,7 @@ sub image_resize
 
 	# stretch
 	if ( $form{Stretch}-> checked) {
-		if ( $form{Scaling}-> text !~ /^Nearest/) {
-			my $g = Prima::Image::Magick::prima_to_magick( $image);
-			$g-> Resize( 
-				width  => $new[0],
-				height => $new[1],
-				filter => $form{Scaling}-> text,
-			);
-			$image = $g-> Prima;
-		} else {
-			$image-> size( @new);
-		}
+		$image-> set( size => \@new, scaling => $scalings{$form{Scaling}->text} );
 		image_replace( $image);
 		goto DONE;
 	}
@@ -3713,24 +3683,17 @@ $w = Prima::MainWindow-> create( menuItems => [
 		[],
 		[ 'S~caling' => [
 			$UseBufferedZoom ? (
-			['Scaling0'         => '~System (unbuffered)'  => \&scaling_set ],
-			['Scaling1'         => '~Nearest neighborhood' => \&scaling_set ],
+			['Scaling0'   => '~System (unbuffered)'  => \&scaling_set ],
+			['ScalingBox' => '~Nearest neighborhood' => \&scaling_set ],
 			) : (
-			['Scaling0'         => '~Nearest neighborhood' => \&scaling_set ],
+			['Scaling0'   => '~Nearest neighborhood' => \&scaling_set ],
 			),
-			$UseImageMagick ? (
-			['ScalingQuadratic' => 'Bi~linear'         => \&scaling_set ],
-			['ScalingCubic'     => 'Bi~cubic'          => \&scaling_set ],
 			( map {
-			[ "Scaling$_"       => $_                  => \&scaling_set ]
-			} qw( Triangle Hermite Hanning Hamming Blackman Gaussian 
-			Catrom Mitchell Lanczos Bessel Sinc)),
+			[ "Scaling$_" => $_                      => \&scaling_set ]
+			} sort { $scalings{$a} <=> $scalings{$b} } grep { $_ ne 'Box' } keys %scalings ),
 			[],
 			[ ( $ini->{DelayScaling} ? '*' : '') .
 			'DelayScaling', 'Delay slow ~scaling' => \&menuitem_toggle ],
-			) : (
-			['Install Prima::Image::Magick for more', sub{}]
-			),
 		]],
 		['animation' => '~Animation' => [
 			[ '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
@@ -3812,7 +3775,7 @@ Prima::EventHook::install(
 	event  => 'Execute',
 );
 
-$ini-> {Scaling} = $UseBufferedZoom 
+$ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0'
 	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
 scaling_set( $w, 'Scaling' . $ini-> {Scaling});
 sorting_set( $w, 'sort_' . $ini-> {Sorting});
