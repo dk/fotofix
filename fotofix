@@ -2230,7 +2230,7 @@ sub image_convert_colors
 		my $self  = shift->owner;
 		my $colors = $self->Colors->value;
 		$self->text( "$colors colors" );
-		image_replace( $image-> clone(
+		image_replace( $orig-> clone(
 			palette    => $colors,
 			conversion => $conv[$self->Conversion->focusedItem],
 			type       => ( $colors > 16 ) ? 8 : (( $colors > 2 ) ? 4 : 1),
