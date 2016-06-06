@@ -1,7 +1,4 @@
 #!/usr/bin/perl -w
-my $__V = <<'V';
-# $Id: fotofix,v 1.88 2010/04/13 11:33:20 dk Exp $
-V
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
 # rotate images, and remove red eyes (with some luck, and if IPA is installed)
@@ -17,7 +14,7 @@ V
 
 use strict;
 use warnings;
-use Prima 1.44 qw(
+use Prima 1.47 qw(
 	Application ImageViewer StdDlg Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
 	VB::VBLoader Image::AnimateGIF
@@ -29,8 +26,7 @@ use Time::HiRes;
 eval "use IPA;";
 my $UseIPA = not $@;
 
-$__V =~ /v ([\d.]+)/;
-my $VERSION = $1;
+my $VERSION = 1.80;
 
 # If on, can be (not necessarily) , faster but surely will cost extra memory. 
 # Since X11 doesn't support scaled image output, this doesn't matter, and should be
