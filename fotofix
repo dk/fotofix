@@ -1,15 +1,15 @@
 #!/usr/bin/perl -w
 # simple image viewer with simple capabilities to take care of
 # freshly downloaded photos from your camera - can walk image lists,
-# rotate images, and remove red eyes (with some luck, and if IPA is installed)
+# rotate images, and remove red eyes (with some luck, and if Prima::IPA is installed)
 #
 # dependencies:
 # Prima: http://prima.eu.org/anon_cvs.html ( but will also work with
 #  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.22.tar.gz )
 #
 # optional dependencies:
-# IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/IPA-1.03.tar.gz 
-#    (or http://prima.eu.org/IPA/IPA-1.03.tar.gz if CPAN refuses)
+# Prima::IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima::IPA-1.03.tar.gz 
+#    (or http://prima.eu.org/Prima::IPA/Prima::IPA-1.03.tar.gz if CPAN refuses)
 #
 
 use strict;
@@ -23,7 +23,7 @@ use Cwd qw(getcwd abs_path);
 use File::Copy;
 use Time::HiRes;
 
-eval "use IPA;";
+eval "use Prima::IPA;";
 my $UseIPA = not $@;
 
 my $VERSION = 1.80;
@@ -128,20 +128,20 @@ sub create_pointer
 	$i-> combine( $x, $aa);
 }
 
-sub loadIPA
+sub loadPrima::IPA
 {
 	return 1 if $IPALoaded;
 
 	unless ( $UseIPA) {
 		my $func = shift || 'This function';
-		message("$func requires IPA module installed");
+		message("$func requires Prima::IPA module installed");
 		return 0;
 	}
 
-	require IPA::Misc;     IPA::Misc->     import('/./');
-	require IPA::Point;    IPA::Point->    import('/./'); 
-	require IPA::Geometry; IPA::Geometry-> import('/./'); 
-	require IPA::Local;    IPA::Local->    import('/./'); 
+	require Prima::IPA::Misc;     Prima::IPA::Misc->     import('/./');
+	require Prima::IPA::Point;    Prima::IPA::Point->    import('/./'); 
+	require Prima::IPA::Geometry; Prima::IPA::Geometry-> import('/./'); 
+	require Prima::IPA::Local;    Prima::IPA::Local->    import('/./'); 
 
 	$IPALoaded++;
 	return 1;
@@ -2272,7 +2272,7 @@ sub image_convert_colors
 
 sub image_convert_mono
 {
-	return unless loadIPA;
+	return unless loadPrima::IPA;
 
 	my $orig = $image-> dup;
 	my $gray = $image;
@@ -2840,7 +2840,7 @@ sub image_invert
 
 sub image_remove_red_eyes
 {
-	return unless loadIPA;
+	return unless loadPrima::IPA;
 
 	return message('Can only work on color images') 
 		if im::Color != ($image-> type & im::Category);
@@ -2865,8 +2865,8 @@ sub image_remove_red_eyes
 	}
 
 	# keep strong red features by subtracting everything green AND blue
-	my $x = subtract( $r, $g, conversionType => IPA::conversionTrunc());
-	$x = subtract( $x, $b, conversionType => IPA::conversionTrunc());
+	my $x = subtract( $r, $g, conversionType => Prima::IPA::conversionTrunc());
+	$x = subtract( $x, $b, conversionType => Prima::IPA::conversionTrunc());
 	# have a binary mask
 	$x = threshold( $x, minvalue => 1);
 	# cut a hole with the mask in the original red channel
@@ -2926,7 +2926,7 @@ sub image_apply_gray_operator(&)
 
 sub image_equalize
 {
-	return unless loadIPA;
+	return unless loadPrima::IPA;
 	return message('Can only work on grayscale 8-bit images') 
 		if $image-> type != im::Byte;
 	image_replace_region( equalize( region_image()));
@@ -2934,7 +2934,7 @@ sub image_equalize
 
 sub image_gamma
 {
-	return unless loadIPA;
+	return unless loadPrima::IPA;
 
 	my $orig = $image-> dup;
 
@@ -2961,7 +2961,7 @@ sub image_gamma
 
 sub image_multiply
 {
-	return unless loadIPA;
+	return unless loadPrima::IPA;
 
 	my $orig = $image-> dup;
 	my $title = 'Contrast and brightness';
@@ -3100,7 +3100,7 @@ sub image_multiply
 
 sub image_convolutions
 {
-	return unless loadIPA;
+	return unless loadPrima::IPA;
 	return message('Image too small') if $image->width < 3 || $image->height < 3;
 
 	my $orig = $image-> dup;
@@ -3117,7 +3117,7 @@ sub image_convolutions
 		my $kernel;
 		my $method = ( $self->Laplacian->checked ) ? 'laplacian' : 'gaussian';
 		$self->text( "\u$method blur " . sprintf("%.2f", $sigma ));
-		$kernel = IPA::Local->can($method)->( $kernel_size, $sigma );
+		$kernel = Prima::IPA::Local->can($method)->( $kernel_size, $sigma );
 		$image = $orig;
 		image_apply_gray_operator { convolution( shift, $kernel ) };
 	};
@@ -3480,7 +3480,7 @@ sub transition_set
 	my ( $self, $tx) = @_;
 	$tx =~ s/tx_//;
 	if ( $tx eq 'blend') {
-		return unless loadIPA('Blending transition');
+		return unless loadPrima::IPA('Blending transition');
 	}
 	$menu-> uncheck( 'tx_' . $ini-> {Transition});
 	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
@@ -3842,7 +3842,7 @@ longer satisfied with any, so I wrote yet another one.
 
 =head1 INSTALLATION
 
-FotoFix requres L<perl>, L<Prima>, and L<IPA> as dependencies. Whereas the
+FotoFix requres L<perl>, L<Prima>, and L<Prima::IPA> as dependencies. Whereas the
 first can be obtained by typing "download perl" in Google, the latter are
 available from CPAN.
 
