@@ -2339,12 +2339,12 @@ sub animation_load
 
 	# commit
 	$animation-> {timer} = Prima::Timer-> new(
-		timeout => $info-> {delay} * 1000,
+		timeout => ($info-> {delay} || 0.04) * 1000,
 		onTick  => sub {
 			if ( $animation && $animation-> {player}) {
 				$info = $animation-> {player}-> next;
 				if ( $info) {
-					$_[0]-> timeout( $info-> {delay} * 1000);
+					$_[0]-> timeout(( $info-> {delay} || 0.04) * 1000);
 					$image = $player-> image;
 					image_reset_display_buffer();
 					$magnify-> repaint if $magnify;
