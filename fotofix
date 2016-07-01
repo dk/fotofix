@@ -3151,6 +3151,7 @@ sub magnify
 	if ( $show) {
 		return if $magnify;
 		@magnify_size = map { $_ * $scale } @MagnifyingGlassSize;
+		$magnify_zoom = 2;
 		my $x = $w-> insert( Widget => 
 			size		=> \@magnify_size,
 			syncPaint	=> 1,
@@ -3186,7 +3187,6 @@ sub magnify
    				$self-> rectangle( 0, 0, map { $_ - 1 } @magnify_size);
 			},
 		);
-		$magnify_zoom = 2;
 		$x-> focus;
 		$iv-> capture(1);
 		$::application-> pointerVisible(0);
