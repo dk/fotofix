@@ -820,11 +820,9 @@ sub transition_blend
 
 	for (1..15) {
 		my $t = Time::HiRes::time();
-		$iv-> put_image( 0, 0, 
-			combine_channels(
-				[$blend2,$blend1],
-				'alpha' . ( $_ * 16 - 1)
-		));
+		my $dest = $blend1->dup;
+		$dest-> put_image(0, 0, $blend2, rop::blend( $_ * 16 - 1 ));
+		$iv-> put_image( 0, 0, $dest );
 		$t = 0.03 + $t - Time::HiRes::time();
 		select(undef,undef,undef,$t) if $t > 0;
 	}
@@ -3479,9 +3477,6 @@ sub transition_set
 {
 	my ( $self, $tx) = @_;
 	$tx =~ s/tx_//;
-	if ( $tx eq 'blend') {
-		return unless loadPrima::IPA('Blending transition');
-	}
 	$menu-> uncheck( 'tx_' . $ini-> {Transition});
 	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
 }
@@ -3776,7 +3771,6 @@ $ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0'
 scaling_set( $w, 'Scaling' . $ini-> {Scaling});
 sorting_set( $w, 'sort_' . $ini-> {Sorting});
 
-$ini-> {Transition} = 'block' if $ini-> {Transition} eq 'blend' and not $UseIPA;
 transition_set( $w, 'tx_' . $ini-> {Transition});
 
 update_menu_status();
