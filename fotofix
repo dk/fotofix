@@ -3536,7 +3536,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 	[ 'file' => '~File' => [
 		['open'   => '~Open image...'  => 'Ctrl+O'       => '^O' => \&open_image],
 		['reopen' => '~Reopen image...'=> 'Ctrl+Shift+O' => '^#O' => \&reopen_image],
-		[            'Open ~URL...'                               => \&open_url_dialog],
+		[ openurl => 'Open ~URL...'                               => \&open_url_dialog],
 		['save'   => '~Save image'     => 'Ctrl+S'       => '^S' => \&save_image],
 		['saveas' => 'S~ave as...'     => 'Ctrl+Shift+S' => '^#S'=> \&save_image_as],
 		['info'   => '~Information...' =>                        => \&image_info],
@@ -3587,7 +3587,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['texecute' => 'E~xecute...'=> 'Ctrl+Shift+X' => '^#X'  => \&file_execute ],
 		]],
 		['E~xternal commands' => [
-			['~Edit...' => \&external_command_edit ],
+			[ext_cmd_edit => '~Edit...' => \&external_command_edit ],
 			[],
 			(map {
 				my $id = $_;
@@ -3599,7 +3599,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		]],
         	['print' => '~Print...' => 'Ctrl+P' => '^P' => \&file_print ],
 		[],
-		['E~xit'          => 'Esc'  => kb::Escape => sub {
+		[exit => 'E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
 				magnify(0);
 			} else {
@@ -3620,7 +3620,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			$fn =~ s/\//\\/g if $^O =~ /win32/i;
 			$::application-> Clipboard-> text($fn) if defined $fn;
 		}],
-		['~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
+		[paste => '~Paste' => 'Shift+Ins' => km::Shift|kb::Insert , sub {
 			my $i = $::application-> Clipboard-> image;
 			if ( $i) {
 				$filename = 'Clipboard'
@@ -3635,69 +3635,69 @@ $w = Prima::MainWindow-> create( menuItems => [
 		['grab'  => '~Grab screen...' => \&grab_screen ],
 		[],
 		[ 'convert' => 'Con~vert to'=> [
-			['~Monochrome' => sub {image_convert(im::Mono)}],
-			['Monochrome by ~threshold....' => \&image_convert_mono],
-			['~16 colors'  => sub {image_convert(im::bpp4)}],
-			['~256 colors' => sub {image_convert(im::bpp8)}],
-			['~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
-			['~RGB'        => sub {image_convert(im::RGB)}],
-			['~Custom...'  => \&image_convert_colors],
+			[bpp01 => '~Monochrome' => sub {image_convert(im::Mono)}],
+			[bppX1 => 'Monochrome by ~threshold....' => \&image_convert_mono],
+			[bpp04 => '~16 colors'  => sub {image_convert(im::bpp4)}],
+			[bpp08 => '~256 colors' => sub {image_convert(im::bpp8)}],
+			[bppG8 => '~Grayscale'  => sub {image_convert(im::bpp8|im::GrayScale)}],
+			[bpp24 => '~RGB'        => sub {image_convert(im::RGB)}],
+			[bpp00 => '~Custom...'  => \&image_convert_colors],
 			[],
-			['N' => '~No halftoning'   => \&conversion_set],
-			['O' => '~Ordered'         => \&conversion_set],
-			['E' => '~Error diffusion' => \&conversion_set], 
-			['*P' => 'O~ptimized'      => \&conversion_set], 
+			[ict0 => 'N' => '~No halftoning'   => \&conversion_set],
+			[ict1 => 'O' => '~Ordered'         => \&conversion_set],
+			[ict2 => 'E' => '~Error diffusion' => \&conversion_set], 
+			[ict3 => '*P' => 'O~ptimized'      => \&conversion_set], 
 		]],
 		[ 'resize' => 'Re~size...' => 'Ctrl+R' => '^R' => \&image_resize, ],
 		[ 'rotate' => '~Rotate and mirror' => [
-			['Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(270) }],
-			['Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(90) }],
-			["Rotate ~180\xB0" => sub { image_rotate(180) }],
+			[rotate3 => 'Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(270) }],
+			[rotate1 => 'Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(90) }],
+			[rotate2 => "Rotate ~180\xB0" => sub { image_rotate(180) }],
 			[],
-			['Mirror ~vertical' => 'V' => 'v' => sub { image_mirror(1) }],
-			['Mirror ~horizontal' => 'H' => 'h' => sub { image_mirror(0) }],
+			[mirror1 => 'Mirror ~vertical' => 'V' => 'v' => sub { image_mirror(1) }],
+			[mirror0 => 'Mirror ~horizontal' => 'H' => 'h' => sub { image_mirror(0) }],
 		]],
 		['effects' => '~Effects' => [
-			['~Invert' => \&image_invert ],
+			[invert     => '~Invert' => \&image_invert ],
 			['-redeyes' => '~Remove red eyes' => 'Alt+R' => '@R' => \&image_remove_red_eyes ],
 			['equalize' => '~Equalize' => \&image_equalize ],
-			['~Gamma...' => \&image_gamma ],
-			['Convol~utions...' => \&image_convolutions ],
-			['~Brigthess/constrast...' => 'Alt+B' => '@B' => \&image_multiply ],
+			[gamma      => '~Gamma...' => \&image_gamma ],
+			[conv       => 'Convol~utions...' => \&image_convolutions ],
+			[brightness => '~Brigthess/constrast...' => 'Alt+B' => '@B' => \&image_multiply ],
 		]],
 		['palette' => 'P~alette' => \&edit_palette ],
 	]],
 	['view' => '~View' => [
 		['~Zoom' => [
-			['~Normal ( 100%)' => 'Z' => 'Z' => sub{zoom_set(1.0)}],
+			[z1     => '~Normal ( 100%)' => 'Z' => 'Z' => sub{zoom_set(1.0)}],
 			[],
-			['25%' =>   sub{zoom_set 0.25}],
-			['~50%' =>  sub{zoom_set 0.5 }],
-			['~75%' =>  sub{zoom_set 0.75}],
-			['~150%' => sub{zoom_set 1.5 }],
-			['~200%' => sub{zoom_set 2   }],
-			['~300%' => sub{zoom_set 3   }],
-			['~400%' => sub{zoom_set 4   }],
-			['~600%' => sub{zoom_set 6   }],
-			['16~00%' =>sub{zoom_set 16  }],
+			[z0_25  => '25%' =>   sub{zoom_set 0.25}],
+			[z0_5   => '~50%' =>  sub{zoom_set 0.5 }],
+			[z0_75  => '~75%' =>  sub{zoom_set 0.75}],
+			[z1_5   => '~150%' => sub{zoom_set 1.5 }],
+			[z2     => '~200%' => sub{zoom_set 2   }],
+			[z3     => '~300%' => sub{zoom_set 3   }],
+			[z4     => '~400%' => sub{zoom_set 4   }],
+			[z6     => '~600%' => sub{zoom_set 6   }],
+			[z16    => '16~00%' =>sub{zoom_set 16  }],
 			[],
-			['~Increase' => '+' => '+' => sub { zoom_scale 1.1 }],
-			['~Decrease' => '-' => '-' => sub { zoom_scale 0.9 }],
+			[zplus  => '~Increase' => '+' => '+' => sub { zoom_scale 1.1 }],
+			[zminus => '~Decrease' => '-' => '-' => sub { zoom_scale 0.9 }],
 		]],
-		['F~ull screen' => 'Enter' => kb::Enter => sub {
+		[fullscreen => 'F~ull screen' => 'Enter' => kb::Enter => sub {
 			fullscreen( not $fullscreen);
 		}],
 		[ ( $ini->{AutoBestFit} ? '*' : '') .
-		'AutoBestFit' => 'Fit to ~window' => 'M' => 'm' => \&fitting_set,
+			'AutoBestFit' => 'Fit to ~window' => 'M' => 'm' => \&fitting_set,
 		],[
 		( $ini->{WindowFit} ? '*' : '') .
-		'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
+			'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
 		],[ ( $ini->{ImageFit} ? '*' : '') .
-		'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
+			'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
 		],
-		[ 'Fit to ~width' => sub { fitting_set_size(1) } ],
-		[ 'Fit to ~height' => sub { fitting_set_size(0) } ],
-		['~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
+		[view_fit_1 => 'Fit to ~width' => sub { fitting_set_size(1) } ],
+		[view_fit_0 => 'Fit to ~height' => sub { fitting_set_size(0) } ],
+		[view_minimize => '~Minimize' => 'Ctrl+Z' => '^Z' => 'minimize' ],
 		[],
 		[ 'S~caling' => [
 			$UseBufferedZoom ? (
@@ -3714,13 +3714,13 @@ $w = Prima::MainWindow-> create( menuItems => [
 			'DelayScaling', 'Delay slow ~scaling' => \&menuitem_toggle ],
 		]],
 		['animation' => '~Animation' => [
-			[ '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
-			[  'Re~wind'     =>                     \&animation_rewind ],
-			[  '~Next frame' => 'A'      => 'a'  => \&animation_next ],
+			[ ani_start  => '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
+			[ ani_rewind =>  'Re~wind'     =>                     \&animation_rewind ],
+			[ ani_step   =>  '~Next frame' => 'A'      => 'a'  => \&animation_next ],
 		]],
 		['~Slideshow' => [
 			['slideshow' => 'Start/stop ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
-			[ 'Set slideshow ~delay...' => \&slideshow_set_delay ],
+			[ slideshow_delay => 'Set slideshow ~delay...' => \&slideshow_set_delay ],
 			[],
 			[ 'tx_none', '~No effects'    => \&transition_set ],
 			[ 'tx_blend', '~Blend effect' => \&transition_set ],
@@ -3729,7 +3729,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 	]],
 	[],
 	['~Settings' => [
-		['~Edit shortcuts' => \&menu_edit ],
+		[shortcuts => '~Edit shortcuts' => \&menu_edit ],
 		[],
 		[ ( $ini->{AutoPosition} ? '*' : '') .
 		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
@@ -3743,9 +3743,9 @@ $w = Prima::MainWindow-> create( menuItems => [
 		'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_toggle ],
 	]],
 	['~Help' => [
-		["~Information" => "F1" => "F1" => sub { $::application-> open_help($0)}],
+		[information => "~Information" => "F1" => "F1" => sub { $::application-> open_help($0)}],
          	[],
-		[ "~About" => sub { message <<ABOUT, mb::OK }],
+		[about => "~About" => sub { message <<ABOUT, mb::OK }],
 FotoFix v$VERSION by Dmitry Karasik
 
 A simple image viewer
