@@ -3205,10 +3205,15 @@ sub grab_screen
 	return if $modified and not can_close_image;
 
 	my $delay = 2;
-	message_box( 'Grab screen', join(' ', (split "\n", <<MSG)), mb::Ok);
+	my %opt = ( buttons => {
+		mb::Abort => { text => 'Don\'t show again', size => [ 192, 36 ] }
+	});
+	my $res;
+	$res = message_box( 'Grab screen', join(' ', (split "\n", <<MSG)), mb::Ok|mb::Abort, \%opt) if $ini->{ConfirmationGrab};
 Screen will be grabbed in $delay seconds after main window disappears. 
 If that's too short, keep Control key pressed, so you'll have $delay seconds more
 MSG
+	$ini->{ConfirmationGrab} = 0 if defined($res) && $res == mb::Abort;
 
 	$w-> visible(0);
 
@@ -3499,6 +3504,7 @@ $ini = Prima::IniFile-> create(
 				Transition   => 'block',
 				Sorting      => 'alpha',
 				SortForward  => 1,
+				ConfirmationGrab => 1,
 				( map {( "Ext$_" => '' )} (1..9)),
 			],
 		],
