@@ -17,7 +17,7 @@ use warnings;
 use Prima 1.47 qw(
 	Application ImageViewer StdDlg Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
-	VB::VBLoader Image::AnimateGIF
+	VB::VBLoader Image::AnimateGIF KeySelector
 );
 use Cwd qw(getcwd abs_path);
 use File::Copy;
@@ -56,7 +56,7 @@ my $MaxLastFiles = 10;
 my ( 
 	$w, $menu, $iv, $image,
 	$magnify, $magnify_zoom,
-	$ini,
+	$ini, $ini_file,
 	$use_prebuffered_zoom, $image_is_loading,
 	%neighbour_files_cache,
 	$filename, $filecodec,
@@ -1961,7 +1961,11 @@ sub can_close_image
 
 sub on_close
 {
-	shift-> clear_event unless can_close_image()
+	if ( can_close_image() ) {
+		$menu-> keys_save( $ini_file->section('Keys') );
+	} else {
+		shift-> clear_event;
+	}
 }
 
 sub iv_mousedown
@@ -3476,7 +3480,23 @@ sub last_file_replace
 sub menuitem_toggle
 { 
 	$ini->{$_[1]} = $menu-> toggle( $_[1])
-};
+}
+
+sub menu_edit
+{
+	my $w = Prima::Dialog-> create(
+		text => 'Key selector',
+		packPropagate => 0,
+		centered => 1,
+		size     => [750, 400],
+		borderStyle => bs::Sizeable,
+	);
+	$w-> insert( 'Prima::KeySelector::MenuEditor' => 
+		pack         => { expand => 1, fill => 'both'},
+		menu         => $menu,
+	);
+	$w->execute;
+}
 
 sub transition_set
 {
@@ -3486,7 +3506,7 @@ sub transition_set
 	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
 }
 
-$ini = Prima::IniFile-> create( 
+$ini_file = Prima::IniFile-> create( 
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
 			'Main' => [
@@ -3508,7 +3528,8 @@ $ini = Prima::IniFile-> create(
 				( map {( "Ext$_" => '' )} (1..9)),
 			],
 		],
-)-> section('Main');
+);
+$ini = $ini_file-> section('Main');
 			
 
 $w = Prima::MainWindow-> create( menuItems => [
@@ -3576,7 +3597,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 				]
 			} (1..9))
 		]],
-        ['print' => '~Print...' => 'Ctrl+P' => '^P' => \&file_print ],
+        	['print' => '~Print...' => 'Ctrl+P' => '^P' => \&file_print ],
 		[],
 		['E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
@@ -3705,20 +3726,22 @@ $w = Prima::MainWindow-> create( menuItems => [
 			[ 'tx_blend', '~Blend effect' => \&transition_set ],
 			[ 'tx_block', 'B~lock effect' => \&transition_set ],
 		]],
-		['~Miscellaneous' => [
-			[ ( $ini->{AutoPosition} ? '*' : '') .
-			'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
-			[ ( $ini->{ShowPartial} ? '*' : '') .
-			'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
-			[ ( $ini->{Cartesian} ? '*' : '') .
-			'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
-			[ ( $ini->{Preload} ? '*' : '') .
-			'Preload',  '~Preload next/prev image' => \&menuitem_toggle ],
-			[ ( $ini->{ExifOrientation} ? '*' : '') .
-			'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_toggle ],
-		]],
 	]],
 	[],
+	['~Settings' => [
+		['~Edit shortcuts' => \&menu_edit ],
+		[],
+		[ ( $ini->{AutoPosition} ? '*' : '') .
+		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
+		[ ( $ini->{ShowPartial} ? '*' : '') .
+		'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
+		[ ( $ini->{Cartesian} ? '*' : '') .
+		'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
+		[ ( $ini->{Preload} ? '*' : '') .
+		'Preload',  '~Preload next/prev image' => \&menuitem_toggle ],
+		[ ( $ini->{ExifOrientation} ? '*' : '') .
+		'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_toggle ],
+	]],
 	['~Help' => [
 		["~Information" => "F1" => "F1" => sub { $::application-> open_help($0)}],
          	[],
@@ -3740,6 +3763,7 @@ ABOUT
 );
 
 $menu = $w-> menu;
+$menu-> keys_load($ini_file-> section( 'Keys'));
 
 $iv = $w-> insert( ImageViewer =>
 	size	      => [ $w-> size],
