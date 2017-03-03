@@ -2085,12 +2085,14 @@ sub iv_mousewheel
 			$magnify_zoom = 100 if $magnify_zoom > 100;
 		}
 		$magnify-> repaint;
-	} else {
+	} elsif ( $mod & km::Ctrl ) {
+		zoom_set( $zoom * (( $z > 0 ) ? 1.1 : 0.9 ));
+    } else {
 		$z = 5 * int( $z / 120);
 		my $xv = ($mod & km::Shift) ? 'vScroll' : 'hScroll';
 		return unless $self-> $xv();
 		$xv = $self-> bring( ucfirst $xv);
-		$z *= ($mod & km::Ctrl) ? $xv-> step : $xv-> pageStep;
+		$z *= ($mod & km::Alt) ? $xv-> step : $xv-> pageStep;
 		my $meth = ( $mod & km::Shift) ? 'deltaX' : 'deltaY';
 		$self-> $meth( $self-> $meth - $z);
 	}
