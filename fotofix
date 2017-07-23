@@ -480,6 +480,7 @@ sub update_window_title
 			monochrome => 1,
 			color      => cl::White,
 			backColor  => cl::Black,
+			font       => $iv->font,
 		);
 		$i-> clear;
 		$i-> text_out( $infostr, 5, $i-> font-> descent);
