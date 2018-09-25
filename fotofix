@@ -17,7 +17,7 @@ use warnings;
 use Prima 1.47 qw(
 	Application ImageViewer StdDlg Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
-	VB::VBLoader Image::AnimateGIF KeySelector
+	VB::VBLoader Image::AnimateGIF KeySelector RubberBand
 );
 use Cwd qw(getcwd abs_path);
 use File::Copy;
@@ -374,16 +374,16 @@ sub region_image
 
 sub draw_marquee
 {
-	my $o = $fullscreen ? $iv : $::application; # hack for win7-aero
-	$o-> begin_paint;
-	$o-> rect_focus(
-		$iv-> client_to_screen(
-			convert_point_to_screen( 
-				@{$iv}{qw(x y marquee_x marquee_y)}
-			)
+	$::application-> rubberband(
+		exists ($iv->{marquee_x}) ? (
+			rect => [ $iv-> client_to_screen(
+					convert_point_to_screen( 
+						@{$iv}{qw(x y marquee_x marquee_y)}
+					))]
+		) : (
+			destroy => 1
 		)
 	);
-	$o-> end_paint;
 }
 
 # Try to get maximal window extensions. In case WM resizes us back, 
@@ -2012,8 +2012,8 @@ sub iv_mouseup
 	if ( $btn == mb::Right) {
 		$self-> pointer( cr::Default);
 	} elsif ( $btn == mb::Left) {
-		draw_marquee();
 		delete @{$self}{qw(marquee_x marquee_y)};
+		draw_marquee();
 		region_set( @{$self}{qw(x y)}, convert_screen_to_point( $x, $y));
 		update_menu_status();
 	}
@@ -2065,7 +2065,6 @@ sub iv_mousemove
 		my ($dx,$dy) = ($x - $self-> {x}, $y - $self-> {y});
 		$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
 	} elsif ( $self-> {drag} == mb::Left) {
-		draw_marquee();
 		@{$self}{qw(marquee_x marquee_y)} = map { int } convert_screen_to_point($x, $y);
 		draw_marquee();	
 		update_window_title();
