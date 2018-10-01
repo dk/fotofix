@@ -2219,8 +2219,8 @@ sub image_convert_colors
 {
 	my $orig = $image-> dup;
 
-	my @conv = ( ict::None, ict::Ordered, ict::ErrorDiffusion, ict::Optimized );
-	my @text = ('No halftoning', 'Ordered', 'Error diffusion', 'Optimized');
+	my @conv = (ict::Posterization, ict::Ordered, ict::Optimized );
+	my @text = ('Posterization', 'Ordered', 'Optimized');
 	my $current;
 	for ( my $i = 0; $i < @conv; $i++) {
 		$current = $text[$i] if $conversion == $conv[$i];
@@ -2252,7 +2252,13 @@ sub image_convert_colors
 			style     => cs::DropDownList,
 			items     => \@text,
 			text      => $current,
-			onChange  => $change,
+			onChange  => sub {
+				my $self = shift;
+				my $owner = $self->owner;
+				$owner->Colors->enabled( $conv[$self->focusedItem] != ict::Ordered);
+				$owner->Colors->repaint;
+				$change->($self);
+			}
 		],
 		[ Label    => 
 			pack      => { side => 'top', fill => 'x', pad => 10 },
@@ -3646,6 +3652,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			[bpp00 => '~Custom...'  => \&image_convert_colors],
 			[],
 			['N' => '~No halftoning'   => \&conversion_set],
+			[       'Posteri~zation'   => \&conversion_set],
 			['O' => '~Ordered'         => \&conversion_set],
 			['E' => '~Error diffusion' => \&conversion_set], 
 			['*P' => 'O~ptimized'      => \&conversion_set], 
