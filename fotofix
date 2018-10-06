@@ -42,8 +42,8 @@ my $UseShapeExtension =
 # This is the only parameter the red eye detector cares about, and is a balance of 
 # how much green and blue should be there to counterbalance the red. For example,
 # 1.0 (default) will remove these red spots where the intensity or red is more
-# than sum of intensities of blue and green. $HueDiff less than 1 makes the detector 
-# to behave more aggressively, whereas $HueDiff more than 1 makes it be more strict about 
+# than sum of intensities of blue and green. $HueDiff less than 1 makes the detector
+# to behave more aggressively, whereas $HueDiff more than 1 makes it be more strict about
 # what is to be considered the red hue. Values outside 0.8-2.0 are probably not
 # practically useful.
 my $RedEyesHueDiff = 1.0;
@@ -53,7 +53,7 @@ my @MagnifyingGlassSize   = (302,202);
 my $ImageScalingDelay = 100;
 my $MaxLastFiles = 10;
 
-my ( 
+my (
 	$w, $menu, $iv, $image,
 	$magnify, $magnify_zoom,
 	$ini, $ini_file,
@@ -139,9 +139,9 @@ sub loadPrima::IPA
 	}
 
 	require Prima::IPA::Misc;     Prima::IPA::Misc->     import('/./');
-	require Prima::IPA::Point;    Prima::IPA::Point->    import('/./'); 
-	require Prima::IPA::Geometry; Prima::IPA::Geometry-> import('/./'); 
-	require Prima::IPA::Local;    Prima::IPA::Local->    import('/./'); 
+	require Prima::IPA::Point;    Prima::IPA::Point->    import('/./');
+	require Prima::IPA::Geometry; Prima::IPA::Geometry-> import('/./');
+	require Prima::IPA::Local;    Prima::IPA::Local->    import('/./');
 
 	$IPALoaded++;
 	return 1;
@@ -153,15 +153,15 @@ sub image_preferred_scaling
 
 	return '0' if $ini-> {Scaling} eq '0';
 	return '0' if $zoom == 1.0; # duh
-	
+
 	# no point in replotting expensive scaling on each image read
-	return '0' if $image_is_loading; 
+	return '0' if $image_is_loading;
 
 	return $ini-> {Scaling} if $ini-> {Scaling} ne 'Box';
 
 	my $use_buffered_zoom = $UseBufferedZoom;
 	my @as = $::application-> size;
-	$use_buffered_zoom = 0 if 
+	$use_buffered_zoom = 0 if
 		$zoom * $image-> width  > $as[0] or
 		$zoom * $image-> height > $as[1];
 
@@ -567,7 +567,7 @@ sub try_max_window_size
 				}
 		}
 	} ) unless $t;
-	
+
 	$t-> {TryMaxSize}      = \@try_max_size;
 	$t-> {AdjustedForZoom} = \@adjusted_for_zoom;
 	$t-> start;
@@ -583,11 +583,11 @@ sub update_window_size
 		my @ivsize = map { int($z * $_ + .5)} $image-> size;
 		$w-> set(
 			size   => \@ivsize,
-			$ini->{AutoPosition} ? 
+			$ini->{AutoPosition} ?
 				( top => $w-> top ) : ()
 		);
 		try_max_window_size( @client, @ivsize );
-		
+
 		if ( $ini->{AutoPosition}) {
 			my @fo = (0, 0);
 			my $apph = $::application-> height;
@@ -599,14 +599,14 @@ sub update_window_size
 			$w-> frameOrigin( @fo);
 		}
 	}
-	
+
 	if ( $ini->{WindowFit} or $ini->{AutoBestFit}) {
 		zoom_best_fit();
 	} elsif ( $ini->{ImageFit} and not $fullscreen) {
 		# bring window size to the image's
 
 		my @is = $image-> size;
-		
+
 		my @as = get_client_size();
 
 		zoom_set(1.0);
@@ -617,9 +617,9 @@ sub update_window_size
 		for ( 0,1) {
 			my @fo = $w-> frameOrigin;
 			my @fs1 = $w-> frameSize;
-			$w-> set(	
+			$w-> set(
 				size => \@is,
-				( $ini->{AutoPosition} ? 
+				( $ini->{AutoPosition} ?
 					( top => $w-> top ) : ())
 			);
 			my @fs2 = $w-> frameSize;
@@ -633,7 +633,7 @@ sub update_window_size
 			$is[0] = $ws[0] if $is[0] < $ws[0];
 			$is[1] = $ws[1] if $is[1] < $ws[1];
 		}
-	} elsif ( $ini->{ImageFit} and $fullscreen) { 
+	} elsif ( $ini->{ImageFit} and $fullscreen) {
 		zoom_set 1.0;
 	}
 }
@@ -1146,9 +1146,9 @@ sub preload_next_file
 		name  => $name,
 		image => $i,
 	);
-	
+
 	goto LEAVE if image_is_animation( $i );
-	
+
 	my $zoom;
 	if ( $ini-> {WindowFit} and not $fullscreen) {
 		$zoom = zoom_from_window_size( $i, get_client_size);
@@ -1326,7 +1326,7 @@ sub image_info
 		if $i-> get_bpp < 24;
 
 	my $cm = $i-> type & im::Category;
-	$e{'color model'} = 
+	$e{'color model'} =
 		( $cm == im::Color)      ? 'RGB' :
 		( $cm &  im::GrayScale)  ? 'Gray scale'  :
 		                         'Floating point';
@@ -1353,7 +1353,7 @@ sub image_info
 		centered => 1,
 		visible  => 0,
 	);
-	$d-> insert( DetailedList => 
+	$d-> insert( DetailedList =>
 		pack    => { expand => 1, fill => 'both' },
 		items   => \@items,
 		headers => [ Property => 'Value'],
@@ -1412,7 +1412,7 @@ sub tags_invert
 sub open_next_tagged_image
 {
 	my ( $self, $menu) = @_;
-	
+
 	return if $modified and not can_close_image();
 
 	return unless defined $filename;
@@ -1493,7 +1493,7 @@ sub latest_dirs_update
 	if ( $x) {
 		$menu-> remove( $_-> [0]) for @$x;
 	}
-	
+
 	my @latest = latest_dirs;
 	my $hotkey = 1;
 	my @set;
@@ -1584,7 +1584,7 @@ sub files_get_selection
 sub files_multirun
 {
 	my ( $title, $sub, @files) = @_;
-	
+
 	my $i = 1;
 	my $n = @files;
 
@@ -1625,9 +1625,9 @@ sub files_copy_move
 
 	my $YesToAll = 0;
 	my $what = (( $op eq 'copy') ? 'Copying' : 'Moving');
-	files_multirun( 
+	files_multirun(
 		$what,
-		sub { 
+		sub {
 			my $src = $_[0];
 			$src =~ /([^\\\/]*)$/;
 			my $dst = "$dir/$1";
@@ -1647,6 +1647,7 @@ sub files_copy_move
 				$YesToAll++ if $r == mb::Ignore;
 			}
 			my $ok;
+			my $ftag = filename2tag($src); # resolve path before touched
 			RETRY: $ok = File::Copy-> can($op)-> ( $src, $dst);
 			unless ( $ok) {
 				my $r = message_box(
@@ -1658,7 +1659,7 @@ sub files_copy_move
 				return 1 if $r == mb::Cancel;
 				goto RETRY;
 			} else {
-				delete $tags{ filename2tag( $src ) };
+				delete $tags{ $ftag };
 			}
 			return $ok;
 	}, @f);
@@ -1670,7 +1671,7 @@ sub files_copy { files_copy_move( 'copy', 1 ) }
 sub files_move { files_copy_move( 'move', 1 ) }
 sub file_copy  { files_copy_move( 'copy', 0 ) }
 sub file_move  { files_copy_move( 'move', 0 ) }
-	
+
 sub files_rename_exec
 {
 	my ( $what, $cmd, @files) = @_;
@@ -1684,14 +1685,15 @@ sub files_rename_exec
 	local $. = -1;
 	for my $f ( @files) {
 		my ( $path, $basename) = $f =~ m/^(.*)[\\\/]([^\\\/]*)$/;
-		
+
 		$.++;
 		$_ = $basename;
 		$sub->();
 		next if $f eq $_;
 		my $n = "$path/$_";
-		
+
 		my $ok;
+		my $ftag = filename2tag( $f ); # resolve bath before renamed
 		RETRY: $ok = rename( $f, $n);
 		unless ( $ok) {
 			my $r = message_box(
@@ -1703,7 +1705,7 @@ sub files_rename_exec
 			return 1 if $r == mb::Cancel;
 			goto RETRY;
 		} else {
-			delete $tags{ filename2tag( $f ) };
+			delete $tags{ $ftag };
 		}
 
 		$w-> text( "$what $f to $n..." );
@@ -1761,12 +1763,13 @@ sub do_delete
 		"Really delete " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' ?',
 		mb::OkCancel|mb::Warning
 	);
-	
+
 	my ( $basedir, $index, @files) = get_dir_list();
 	populate_next_image_cache( $index, \@files);
 
-	files_multirun( 'Deleting', sub { 
+	files_multirun( 'Deleting', sub {
 		my $ok;
+		my $ftag = filename2tag( $_[0] ); # resolve bath before renamed
 		RETRY: $ok = unlink $_[0];
 		unless ( $ok) {
 			my $r = message_box(
@@ -1778,7 +1781,7 @@ sub do_delete
 			return 1 if $r == mb::Cancel;
 			goto RETRY;
 		} else {
-			delete $tags{ filename2tag( $_[0] ) };
+			delete $tags{ $ftag };
 		}
 	}, @f);
 	update_menu_tags();
@@ -2417,9 +2420,9 @@ sub animation_rewind
 }
 
 
-my $ResizeFM = 
+my $ResizeFM =
 # This is resize.fm included as is in its entirety. If you want to edit it
-# with VB, just copy it to a file. 
+# with VB, just copy it to a file.
 # <--- cut from here --->
 # VBForm version file=1.2 builder=0.2
 # [preload] Prima::ComboBox
@@ -2469,7 +2472,6 @@ sub
 		profile => {
 			owner => 'Form1',
 			tabOrder => 4,
-			text => '',
 			style => cs::DropDownList,
 			origin => [ 160, 156],
 			name => 'Scaling',
@@ -2519,7 +2521,6 @@ sub
 			name => 'Proportional',
 			origin => [ 8, 24],
 			size => [ 143, 23],
-			checked => 1,
 	}},
 	'Stretch' => {
 		class   => 'Prima::CheckBox',
@@ -2531,7 +2532,6 @@ sub
 			name => 'Stretch',
 			origin => [ 8, 0],
 			size => [ 143, 23],
-			checked => 1,
 	}},
 	'Placement' => {
 		class   => 'Prima::ComboBox',
@@ -2543,7 +2543,6 @@ sub
 			name => 'Placement',
 			size => [ 143, 23],
 			tabOrder => 6,
-			text => 'Center Center',
 			items => ['Top Left', 'Top Center', 'Top Right', 'Center Left', 'Center Center', 'Center Right', 'Bottom Left', 'Bottom Center', 'Bottom Right', ],
 	}},
 	'Label5' => {
@@ -2623,7 +2622,6 @@ sub
 		profile => {
 			owner => 'Form1',
 			tabOrder => 6,
-			text => '',
 			name => 'Predefined',
 			style => cs::DropDownList,
 			origin => [ 8, 60],
@@ -2646,7 +2644,7 @@ sub
 # <--- stop cutting --->
 ;
 
-# given placement string, image size, and fitting size, 
+# given placement string, image size, and fitting size,
 # returns the suggested placement coordinates
 sub image_resize_calculate_placement
 {
@@ -2678,6 +2676,7 @@ sub image_resize
 	my %form;
 	my @is = ( $image-> width, $image-> height);
 	my @cm = $image-> colormap;
+	my $ini2 = $ini_file->section('ResizeDialog');
 
 	my @predefined_sizes;
 	for ( 640, 800, 1024, 1280, 1600) {
@@ -2688,29 +2687,33 @@ sub image_resize
 		my @ns = map { int( $_ * $z + .5 ) } @is;
 		push @predefined_sizes, $z * 100 . "% $ns[0]x$ns[1]";
 	}
-	
+
+	my $init_color = $ini2->{Color} // 0;
+	$init_color = $cm[0] if @cm && !grep { $_ == $init_color } @cm;
+
 	%form = Prima::VB::VBLoader::AUTOFORM_REALIZE( [ $ResizeFM-> () ], {
 		Form1        => { visible => 0, designScale => [ 9, 19 ] },
-		Width        => { 
-			value    => $is[0],
+		Width        => {
+			value    => [$predefined_sizes[$ini2->{Predefined}] =~ /(\d+)x\d+/]->[0],
 			onChange => sub {
-				$form{Height}-> value( int( 
+				$form{Height}-> value( int(
 					shift-> value * $is[1] / $is[0] + .5
 				)) if $form{Proportional}-> checked;
 				$form{Display}-> repaint;
 			},
 		},
-		Height       => { 
-			value    => $image-> height, 
+		Height       => {
+			value    => [$predefined_sizes[$ini2->{Predefined}] =~ /\d+x(\d+)/]->[0],
 			onChange => sub {
-				$form{Width}-> value( int( 
+				$form{Width}-> value( int(
 					shift-> value * $is[0] / $is[1] + .5
 				)) if $form{Proportional}-> checked;
 				$form{Display}-> repaint;
 			},
 		},
 		Predefined   => {
-			items => \@predefined_sizes,
+			items    => \@predefined_sizes,
+			text     => $predefined_sizes[$ini2->{Predefined}],
 			onChange => sub {
 				my ( $w, $h) = $_[0]-> text =~ /(\d+)x(\d+)$/;
 				$form{Width}-> value( $w);
@@ -2718,12 +2721,17 @@ sub image_resize
 				$form{Display}-> repaint;
 			},
 		},
-		Stretch      => { onCheck => sub {
-			my $enable = ! shift-> checked;
-			$form{$_}-> enabled( $enable) for qw(Color Placement);
-			$form{Display}-> repaint;
-		}},
-		Color        => { 
+		Stretch      => {
+			checked => $ini2->{Stretch} ? 1 : 0,
+			onCheck => sub {
+				my $enable = ! shift-> checked;
+				$form{$_}-> enabled( $enable) for qw(Color Placement);
+				$form{Display}-> repaint;
+			}
+		},
+		Color        => {
+			enabled    => $ini2->{Stretch} ? 0 : 1,
+			value      => $init_color,
 			onChange   => sub { $form{Display}-> repaint },
 			scalar(@cm) ? (
 			colors     => scalar(@cm),
@@ -2732,13 +2740,18 @@ sub image_resize
 				$$ptr = $cm[$index];
 			}) : (),
 		},
-		Placement    => { onChange => sub { $form{Display}-> repaint }},
-		Proportional => { onCheck  => sub { 
-			$form{Width}-> notify(qw(Change)) if shift-> checked
-		}},
-		Scaling      => { 
-			items => [ sort { $scalings{$a} <=> $scalings{$b} } keys %scalings ], 
-			text  => $ini-> {Scaling},
+		Placement    => {
+			enabled  => $ini2->{Stretch} ? 0 : 1,
+			text     => $ini2->{Placement},
+			onChange => sub { $form{Display}-> repaint }
+		},
+		Proportional => {
+			checked  => $ini2->{Proportional} ? 1 : 0,
+			onCheck  => sub { $form{Width}-> notify(qw(Change)) if shift-> checked}
+		},
+		Scaling      => {
+			text  => $ini2->{Scaling} // $ini->{Scaling},
+			items => [ sort { $scalings{$a} <=> $scalings{$b} } keys %scalings ],
 		},
 		Display      => { onPaint  => sub {
 			my ( $self, $canvas) = @_;
@@ -2779,10 +2792,16 @@ sub image_resize
 			}
 		}},
 	});
+	$form{Width}-> notify(qw(Change)) if $ini2->{Proportional};
 	return message($@) unless $form{Form1};
 
 	goto DONE if $form{Form1}-> execute != mb::OK;
 	# resizing now!
+
+	$ini2->{$_} = $form{Form1}->bring($_)->text    for qw(Placement Scaling);
+	$ini2->{$_} = $form{Form1}->bring($_)->checked for qw(Stretch Proportional);
+	$ini2->{Color} = $form{Form1}->Color->value;
+	$ini2->{Predefined} = $form{Form1}->Predefined->focusedItem;
 
 	my @new = ( $form{Width}-> value, $form{Height}-> value);
 	goto DONE if $new[0] == $is[0] && $new[1] == $is[1]; # do nothing
@@ -2804,7 +2823,7 @@ sub image_resize
 	if ( $place[0] <= 0 && $place[1] <= 0) {
 		image_replace( $image-> extract( -$place[0], -$place[1], @new));
 		goto DONE;
-	} 
+	}
 
 	# extract part of image and superimpose on larger one
 	my $i = Prima::Image-> create(
@@ -3514,7 +3533,7 @@ sub transition_set
 	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
 }
 
-$ini_file = Prima::IniFile-> create( 
+$ini_file = Prima::IniFile-> create(
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
 			'Main' => [
@@ -3535,10 +3554,18 @@ $ini_file = Prima::IniFile-> create(
 				ConfirmationGrab => 1,
 				( map {( "Ext$_" => '' )} (1..9)),
 			],
+			ResizeDialog => [
+				Placement    => 'Center Center',
+				Scaling      => '',
+				Predefined   => 0,
+				Scaling      => 0,
+				Proportional => 0,
+				Color        => 0,
+			],
 		],
 );
 $ini = $ini_file-> section('Main');
-			
+
 
 $w = Prima::MainWindow-> create( menuItems => [
 	[ 'file' => '~File' => [
