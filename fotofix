@@ -8,7 +8,7 @@
 #  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.22.tar.gz )
 #
 # optional dependencies:
-# Prima::IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima::IPA-1.03.tar.gz 
+# Prima::IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima::IPA-1.03.tar.gz
 #    (or http://prima.eu.org/Prima::IPA/Prima::IPA-1.03.tar.gz if CPAN refuses)
 #
 
@@ -28,7 +28,7 @@ my $UseIPA = not $@;
 
 my $VERSION = 1.80;
 
-# If on, can be (not necessarily) , faster but surely will cost extra memory. 
+# If on, can be (not necessarily) , faster but surely will cost extra memory.
 # Since X11 doesn't support scaled image output, this doesn't matter, and should be
 # always disabled. Win32 on the contrary does, but might (or might not) be slower
 # than Prima native image scaling.
@@ -36,10 +36,10 @@ my $UseBufferedZoom =
 	( $::application-> get_system_info->{apc} == apc::Unix) ? 0 : 1;
 
 # used in fullscreen mode
-my $UseShapeExtension = 
+my $UseShapeExtension =
 	$::application-> get_system_value( sv::ShapeExtension);
 
-# This is the only parameter the red eye detector cares about, and is a balance of 
+# This is the only parameter the red eye detector cares about, and is a balance of
 # how much green and blue should be there to counterbalance the red. For example,
 # 1.0 (default) will remove these red spots where the intensity or red is more
 # than sum of intensities of blue and green. $HueDiff less than 1 makes the detector
@@ -172,7 +172,7 @@ sub image_prepare_scaled_buffer
 {
 	my ($image, $zoom, $scaling) = @_;
 
-	return $image-> clone( 
+	return $image-> clone(
 		size    => [ int($image-> width * $zoom + .5), int($image-> height * $zoom + .5)],
 		scaling => $scalings{$scaling},
 	);
@@ -185,7 +185,7 @@ sub image_reset_display_buffer
 	if ( $scaling ne '0') {
 		$iv-> zoom( 1.0);
 		my $buffer;
-		if ( 
+		if (
 			$preloaded{usable} and
 			$preloaded{buffer} and
 			$preloaded{zoom} == $zoom and
@@ -216,17 +216,17 @@ sub image_replace
 	my $eq =
 		$image &&
 		$i &&
-		(join('x', $i-> size) eq join('x', $image-> size)); 
+		(join('x', $i-> size) eq join('x', $image-> size));
 
 	$image = $i;
 	image_reset_display_buffer();
-	
+
 	$modified = 1;
 	update_window_title();
 	update_menu_status();
 	update_window_size() unless $eq;
 }
-	
+
 sub image_replace_region
 {
 	my $i = shift;
@@ -236,7 +236,7 @@ sub image_replace_region
 	} else {
 		image_replace($i);
 	}
-}	
+}
 
 sub zoom_set
 {
@@ -267,9 +267,9 @@ sub zoom_from_window_size
 	my $x = $as[0] / $is[0];
 	my $y = $as[1] / $is[1];
 	my $zoom = ($x < $y) ? $x : $y;
-	
+
 	$zoom = $iv-> zoom_round( $zoom);
-	# Zoom roundoffs may create a slighlty larger zoom which might result 
+	# Zoom roundoffs may create a slighlty larger zoom which might result
 	# in (undesirable) scrollbars. We fight this by reducing zoom factor slightly.
 	while ( grep { $xs[$_] < int($is[$_] * $zoom + .5)} (0,1)) {
 		my $z = $iv-> zoom_round( $zoom - 0.01);
@@ -298,7 +298,7 @@ sub convert_screen_to_point
 sub convert_point_to_screen
 {
 	return $iv-> point2screen(@_) unless $use_prebuffered_zoom;
-	
+
 	my $ivzoom = $iv-> zoom;
 	return $iv-> point2screen( map { $_ * $zoom / $ivzoom } @_);
 }
@@ -319,7 +319,7 @@ sub region_set
 	$r[2] = $s[0] - 1 if $r[2] >= $s[0];
 	$r[3] = $s[1] - 1 if $r[3] >= $s[1];
 
-	@r = (0,0,0,0) if 
+	@r = (0,0,0,0) if
 		$r[0] >= $s[0] or
 		$r[1] >= $s[1] or
 		$r[2] < 0 or
@@ -330,7 +330,7 @@ sub region_set
 	$region = ( grep { $_ != 0 } @r ) ? \@r : undef;
 
 	return if not defined($r) and not defined($region);
-	
+
 	$iv-> repaint;
 }
 
@@ -339,7 +339,7 @@ sub image_as_displayed
 	my $i = $iv-> image;
 
 	if ( $use_prebuffered_zoom) {
-		$i = $i-> extract( map { int( $zoom * $_ + 0.5 ) } 
+		$i = $i-> extract( map { int( $zoom * $_ + 0.5 ) }
 			$region->[0],
 			$region->[1],
 			$region->[2] - $region->[0],
@@ -352,7 +352,7 @@ sub image_as_displayed
 				$region->[1],
 				$region->[2] - $region->[0],
 				$region->[3] - $region->[1]
-			) : 
+			) :
 			$i-> dup;
 		$i-> size( $i-> width * $zoom, $i-> height * $zoom)
 			if $zoom != 1.0;
@@ -363,7 +363,7 @@ sub image_as_displayed
 
 sub region_image
 {
-	$region ? 
+	$region ?
 		$image-> extract(
 			$region->[0],
 			$region->[1],
@@ -377,7 +377,7 @@ sub draw_marquee
 	$::application-> rubberband(
 		exists ($iv->{marquee_x}) ? (
 			rect => [ $iv-> client_to_screen(
-					convert_point_to_screen( 
+					convert_point_to_screen(
 						@{$iv}{qw(x y marquee_x marquee_y)}
 					))]
 		) : (
@@ -386,7 +386,7 @@ sub draw_marquee
 	);
 }
 
-# Try to get maximal window extensions. In case WM resizes us back, 
+# Try to get maximal window extensions. In case WM resizes us back,
 # record this, and adjust accordingly
 sub get_client_size
 {
@@ -395,7 +395,7 @@ sub get_client_size
 	my @as = $::application-> size;
 	$as[0] -= $::application-> get_system_value(sv::XbsSizeable) * 2;
 	$as[1] -= $::application-> get_system_value(sv::YbsSizeable) * 2
-		+ $::application-> get_system_value(sv::YMenu) 
+		+ $::application-> get_system_value(sv::YMenu)
 		+ $::application-> get_system_value(sv::YTitleBar);
 	my @i = $::application-> get_indents();
 	$as[0] -= $i[0] + $i[2];
@@ -457,10 +457,10 @@ sub update_window_title
 	}
 
 	my $is_modified = $modified ? '* ' : '';
-	my $tag_info    = 
-		(( scalar keys %tags ) ? 
-			('[' . 
-				(scalar keys %tags) . 
+	my $tag_info    =
+		(( scalar keys %tags ) ?
+			('[' .
+				(scalar keys %tags) .
 				(tag_is_set($filename) ? ':T' : '') .
 			'] ') :
 			''
@@ -497,7 +497,7 @@ sub update_menu_tags
 	$menu-> insert(
 		( scalar keys %tags) ? ( [
 			map {
-				my $f = $_; 
+				my $f = $_;
 				[ $f, sub { open_new_image($f) } ]
 			} sort keys %tags,
 		] ) : ([['tagset']]),
@@ -512,7 +512,7 @@ sub update_menu_status
 {
 	my $x = $image ? 1 : 0;
 	$menu-> enabled( $_ , $x) for qw(
-		first last 
+		first last
 		convert copy copybits view rotate effects
 		slideshow resize info
 	);
@@ -543,7 +543,7 @@ sub try_max_window_size
 
 	my $t = $w-> bring('TryMaxWindowSizeTimer'); # exists already? timing pending?
 
-	$t = $w-> insert( Timer => 
+	$t = $w-> insert( Timer =>
 		name    => 'TryMaxWindowSizeTimer',
 		timeout => 1,
 		onTick => sub {
@@ -560,7 +560,7 @@ sub try_max_window_size
 					# window manager reduced the size
 					$max_window_size[$_] = $actual_size[$_];
 				} elsif ( abs( $try_max_size[$_] - $adjusted_for_zoom[$_]) < 3) {
-					# add lax for a couple of pixels for zoom roundoffs, 
+					# add lax for a couple of pixels for zoom roundoffs,
 					# and record max size as actually reached max size, just
 					# to stop further tries
 					$max_window_size[$_] = $actual_size[$_];
@@ -758,7 +758,7 @@ sub fullscreen
 	magnify(0);
 
 	$fullscreen_x11 ?
-		&fullscreen_x11 : 
+		&fullscreen_x11 :
 		&fullscreen_win32;
 	if ( $UseShapeExtension) {
 		if ( $f) {
@@ -797,7 +797,7 @@ sub transition_block
 		next unless $p[$i];
 		$p[$i] = undef;
 		$left--;
-		
+
 		my ( $x, $y) = map { int($_) * $s} ( $i / $Y, $i % $Y);
 		$iv-> put_image_indirect(
 			$blend2,
@@ -872,13 +872,13 @@ sub open_image
 			update_window_size();
 		},
 	) unless $open_dialog;
-		
+
 	$open_dialog-> directory($ini-> {Path});
 
 	$image_is_loading++;
-	my $i = $open_dialog-> load( 
+	my $i = $open_dialog-> load(
 		load_params,
-		progressViewer => $iv, 
+		progressViewer => $iv,
 	);
 	$image_is_loading--;
 	unless ($i) {
@@ -902,14 +902,14 @@ sub open_image
 		$open_dialog-> {frameIndex} == 0 and
 		image_is_animation($i) and
 		animation_load($filename);
-	
+
 	$image = $i;
 	image_reset_display_buffer();
 	update_window_size();
 	update_window_title();
 	update_menu_status();
 	last_file_add( $filename);
-	
+
 	$iv-> update_view;
 }
 
@@ -1008,13 +1008,13 @@ sub open_new_image
 	my $delay_scaling      = $ini-> {DelayScaling} && $ini-> {Scaling} !~ /^(0|Box)$/ && not $have_scaled_buffer;
 
 	unless ( $window_size_updated) {
-		$ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0' if $delay_scaling; 
+		$ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0' if $delay_scaling;
 		image_reset_display_buffer();
 		update_window_size();
 	}
 	update_window_title();
 	update_menu_status();
-	
+
 	$iv-> update_view;
 
 	if ( $ini-> {Scaling} ne $save_scaling) {
@@ -1064,19 +1064,19 @@ sub open_url_dialog
 
 sub get_dir_list
 {
-	my ( $basedir, $file) = 
+	my ( $basedir, $file) =
 		( $filename =~ /^(.*)[\\\/]([^\\\/]+)$/ ) ?
 			($1,$2) :
 			('.',$filename);
 	my $exts = join('|', map { @{$_->{fileExtensions}} } @{Prima::Image-> codecs});
 	my $rx = qr/\.($exts)$/i;
 	return unless opendir D, $basedir;
-	my @files = grep { /$rx/ } readdir D; 
+	my @files = grep { /$rx/ } readdir D;
 	closedir D;
 	if ( $ini-> {Sorting} eq 'alpha') {
 		@files = sort @files;
 	} elsif ( $ini-> {Sorting} eq 'date') {
-		@files = 
+		@files =
 			map  { $$_[0] }
 			sort { $$a[1] cmp $$b[1] }
 			map  { [ $_, (stat "$basedir/$_")[9] ] }
@@ -1124,7 +1124,7 @@ sub populate_next_image_cache
 	%neighbour_files_cache = ();
 
 	return unless defined $current_index;
-	
+
 	for ( $i = 0; $i < @$current_files; $i++) {
 		$neighbour_files_cache{ $current_files->[$i] } = $i - $current_index;
 	}
@@ -1178,7 +1178,7 @@ sub try_preload_next_file
 {
 	return unless defined $filename;
 	return unless $ini-> {Preload};
-	
+
 	my ( $basedir, $index, @files) = get_dir_list();
 	$index = get_next_image_index( 1, \@files)
 		unless defined $index;
@@ -1192,7 +1192,7 @@ sub try_preload_next_file
 sub open_next_image
 {
 	my ( $self, $menu) = @_;
-	
+
 	return if $modified and not can_close_image();
 
 	return unless defined $filename;
@@ -1214,7 +1214,7 @@ sub open_next_image
 		}
 
 		$try_preload = "$basedir/" . $files[$index-1]
-			if $ini-> {Preload} and $index > 0; 
+			if $ini-> {Preload} and $index > 0;
 	} elsif ( $menu eq 'next') {
 		$index = get_next_image_index( 1, \@files)
 			unless defined $index;
@@ -1276,7 +1276,7 @@ sub save_image_as
 {
 	my $ok;
 	$image-> {extras}->{codecID} = $filecodec;
-	$save_dialog = Prima::ImageSaveDialog-> create() 
+	$save_dialog = Prima::ImageSaveDialog-> create()
 		unless $save_dialog;
 	$save_dialog-> set(
 		directory => $ini-> {Path},
@@ -1298,8 +1298,8 @@ sub image_info
 	my $i;
 	if ( $animation) {
 		my $a = $animation-> {player};
-		$i = 
-			$a-> {images}-> [ $a-> {current} ] || 
+		$i =
+			$a-> {images}-> [ $a-> {current} ] ||
 			$a-> {images}-> [-1];
 	} else {
 		$i = $image;
@@ -1320,7 +1320,7 @@ sub image_info
 	$e{width}       = $i-> width . ' pixels';
 	$e{height}      = $i-> height . ' pixels';
 	$e{depth}       = $i-> get_bpp . ' bpp';
-	$e{'animation frame index'} = $animation-> {player}-> {current} 
+	$e{'animation frame index'} = $animation-> {player}-> {current}
 		if $animation;
 	$e{palette}     = [ map { sprintf "%06x", $_ } $i-> colormap ]
 		if $i-> get_bpp < 24;
@@ -1433,7 +1433,7 @@ sub open_next_tagged_image
 		while ( 1) {
 			if ( $i == 0) {
 				return if message(
-					"First tagged image in the directory, go to the last?", 
+					"First tagged image in the directory, go to the last?",
 					mb::YesNo
 				) != mb::Yes;
 				$i = $#files;
@@ -1460,7 +1460,7 @@ sub open_next_tagged_image
 		while ( 1) {
 			if ( $i == $#files) {
 				return if message(
-					"Last tagged image in the directory, go to the first?", 
+					"Last tagged image in the directory, go to the first?",
 					mb::YesNo
 				) != mb::Yes;
 				$i = 0;
@@ -1804,7 +1804,7 @@ sub do_execute
 		helpTopic => "$0/Execute",
 	});
 	return unless defined $cmd and length $cmd;
-	
+
 	# we don't know if the command will be destructive or not, so we'll cache just in case
 	my ( $basedir, $index, @files) = get_dir_list();
 	populate_next_image_cache( $index, \@files);
@@ -1857,7 +1857,7 @@ sub file_print
 		]]);
 	}
 	return unless $print_dialog-> execute;
-	
+
 	my $p = $::application-> get_printer;
 	return message_box('Printer error', $@) unless $p-> begin_doc( $filename);
 
@@ -1882,7 +1882,7 @@ sub file_print
 	my $counter		  = 0;
 	my $offset		  = $actual_ih - $actual_ph;
 	my $pages		  = 0;
-	
+
 	while ( 1 ) {
 		my $at_y = 0;
 		my $page_h = $actual_ph;
@@ -1891,10 +1891,10 @@ sub file_print
 			$at_y = ($pages > 0) ? -$offset : ($ph - $page_h)/2;
 			$offset = 0;
 		}
-		$p->put_image_indirect( $image, 
+		$p->put_image_indirect( $image,
 			$margin, $margin + $at_y,
 			0, $offset / $wzoom,
-			$actual_pw, $page_h, 
+			$actual_pw, $page_h,
 			$iw, int( $page_h / $wzoom + 0.5 ),
 			rop::CopyPut);
 		$counter += $actual_ph;
@@ -1977,7 +1977,7 @@ sub iv_mousedown
 	my ( $self, $btn, $mod, $x, $y) = @_;
 
 	return if $self-> {drag} or not $image;
-	
+
 	if ( $btn == mb::Right) {
 		$self-> {x} = $x;
 		$self-> {y} = $y;
@@ -1991,7 +1991,7 @@ sub iv_mousedown
 		$self-> capture(1, $self);
 	} elsif ( $btn == mb::Middle) {
 		return magnify(
-			$magnify ? 0 : 1, 
+			$magnify ? 0 : 1,
 			( $mod & km::Ctrl) ? 2 : 1
 		);
 	} else {
@@ -2030,26 +2030,26 @@ sub iv_mousemove
 		if ( $mod & km::Shift) {
 			my @p = convert_screen_to_point($x, $y);
 			my $p = (grep { $_ < 0 } @p) ?
-				cl::Invalid : 
+				cl::Invalid :
 				$image-> pixel( @p);
 
 			@p = map { int } @p;
 			$p[1] = $image-> height - $p[1] - 1 unless $ini->{Cartesian};
-			$current_pixel = ( $p == cl::Invalid) ? 
-				undef : 
+			$current_pixel = ( $p == cl::Invalid) ?
+				undef :
 				sprintf(
 					"$p[0]:$p[1] " .
 						$image_format_category{$image->type & im::Category},
 					$image-> pixel( convert_screen_to_point($x, $y))
 				);
-			$::application-> pointerVisible(1) 
+			$::application-> pointerVisible(1)
 				if $magnify and not $::application-> pointerVisible;
 			update_window_title();
 		} elsif ( defined $current_pixel) {
 			undef $current_pixel;
 			update_window_title();
-		} 
-		
+		}
+
 		if ( $magnify) {
 			my @o = $magnify-> origin;
 			my @n = (
@@ -2069,7 +2069,7 @@ sub iv_mousemove
 		$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
 	} elsif ( $self-> {drag} == mb::Left) {
 		@{$self}{qw(marquee_x marquee_y)} = map { int } convert_screen_to_point($x, $y);
-		draw_marquee();	
+		draw_marquee();
 		update_window_title();
 	}
 }
@@ -2156,12 +2156,12 @@ sub conversion_set
 	$self-> menu-> uncheck( $conversion_menuid);
 	$self-> menu-> check( $menuID);
 	$conversion_menuid = $menuID;
-	$conversion = ( 
+	$conversion = (
 		( $menuID eq 'N') ? ict::None : (
 		( $menuID eq 'O') ? ict::Ordered : (
 		( $menuID eq 'E') ? ict::ErrorDiffusion : ict::Optimized
-	)));  
-}   
+	)));
+}
 
 sub image_convert
 {
@@ -2176,31 +2176,31 @@ sub image_convert
 sub image_preview_dialog
 {
 	my ($orig, $title, @objects) = @_;
-	
+
 	my $mod = $modified;
 	animation_close();
 
-	my $dlg = Prima::Dialog->create( 
-		text        => $title, 
+	my $dlg = Prima::Dialog->create(
+		text        => $title,
 		borderStyle => bs::Sizeable,
 		visible     => 0,
 		packPropagate => 0,
 	);
 	@objects = $dlg->insert(@objects) if @objects;
 
-	my $w = $dlg->insert( Widget => 
+	my $w = $dlg->insert( Widget =>
 		pack  => {
 			side     => 'bottom',
 			fill     => 'x',
 			pad      => 10,
 		}
 	);
-	$w->insert( Button => 
+	$w->insert( Button =>
 		text    => '~Cancel',
 		onClick => sub { $dlg-> cancel },
 		pack    => { side => 'right', padx => 10 },
 	);
-	$w->insert( Button => 
+	$w->insert( Button =>
 		text    => '~Ok',
 		default => 1,
 		onClick => sub { $dlg-> ok },
@@ -2242,12 +2242,12 @@ sub image_convert_colors
 
 
 	image_preview_dialog( $orig, 'Convert image',
-		[ Label    => 
+		[ Label    =>
 			pack      => { side => 'top', fill => 'x', pad => 10 },
 			text      => '~Conversion',
 			focusLink => 'Conversion',
 		],
-		[ ComboBox => 
+		[ ComboBox =>
 			name      => 'Conversion',
 			pack      => { side => 'top', fill => 'x', pad => 10 },
 			width     => 400,
@@ -2263,12 +2263,12 @@ sub image_convert_colors
 				$change->($self);
 			}
 		],
-		[ Label    => 
+		[ Label    =>
 			pack      => { side => 'top', fill => 'x', pad => 10 },
 			text      => '~Number of colors',
 			focusLink => 'Colors',
 		],
-		[ Slider => 
+		[ Slider =>
 			name      => 'Colors',
 			pack      => { side => 'top', fill => 'x', pad => 10 },
 			width     => 400,
@@ -2298,7 +2298,7 @@ sub image_convert_mono
 
 	my $title = 'Convert to monochrome';
 	image_preview_dialog( $orig, $title,
-		[ Slider => 
+		[ Slider =>
 			pack      => { side => 'top', fill => 'x' },
 			width     => 400,
 			min       => 0,
@@ -2306,7 +2306,7 @@ sub image_convert_mono
 			value     => 128,
 			scheme    => ss::Thermometer,
 			increment => 32,
-			onChange  => sub { 
+			onChange  => sub {
 				my $self  = shift;
 				$self->owner->text( $title . ' ' . $self->value );
 				image_replace( threshold( $gray, minvalue => $self->value ));
@@ -2325,7 +2325,7 @@ sub image_is_animation
 {
 	my $i = shift;
 	return 0 unless                    # more than 1 frame?
-		$i-> {extras} && 
+		$i-> {extras} &&
 		defined($i-> {extras}->{codecID}) &&
 		$i-> {extras}->{frames} &&
 		$i-> {extras}->{frames} > 1;
@@ -2378,7 +2378,7 @@ sub animation_load
 	update_window_size();
 	update_window_title();
 	update_menu_status();
-	
+
 	$iv-> update_view;
 
 	return 1;
@@ -2843,18 +2843,18 @@ DONE:
 }
 
 sub image_mirror
-{	
+{
 	$image->mirror(shift);
 	image_replace( $image );
 }
 
 sub image_invert
 {
-	# could just as well invert the palette if possible, but 
+	# could just as well invert the palette if possible, but
 	# probably there are chances that it is data to be inverted...
-	
+
 	# doesn't work on floats
-	return message('Unimplemented') 
+	return message('Unimplemented')
 		if im::RealNumber <= ($image-> type & im::Category);
 
 	if ( $region) {
@@ -2871,9 +2871,9 @@ sub image_remove_red_eyes
 {
 	return unless loadPrima::IPA;
 
-	return message('Can only work on color images') 
+	return message('Can only work on color images')
 		if im::Color != ($image-> type & im::Category);
-	
+
 	my $i = region_image();
 	$i-> type( im::RGB); # split_channels accepts RGB only
 	my ( $r, $g, $b) = @{split_channels( $i)};
@@ -2956,7 +2956,7 @@ sub image_apply_gray_operator(&)
 sub image_equalize
 {
 	return unless loadPrima::IPA;
-	return message('Can only work on grayscale 8-bit images') 
+	return message('Can only work on grayscale 8-bit images')
 		if $image-> type != im::Byte;
 	image_replace_region( equalize( region_image()));
 }
@@ -2969,7 +2969,7 @@ sub image_gamma
 
 	my $title = 'Gamma value (exp): ';
 	image_preview_dialog( $orig, $title,
-		[ Slider => 
+		[ Slider =>
 			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
 			min       => -5,
@@ -2977,7 +2977,7 @@ sub image_gamma
 			increment => 1,
 			step      => 0.001,
 			scheme    => ss::Thermometer,
-			onChange  => sub { 
+			onChange  => sub {
 				my $self  = shift;
 				my $value = exp($self->value);
 				$self->owner->text( $title . ' ' .  sprintf("%.3f", $value ));
@@ -3004,7 +3004,7 @@ sub image_multiply
 		$max = 255 if $max > 255; # 256 is there only for beauty of a slider
 		$self->text( sprintf("y=$min < %.3fx%s%.1f < $max", $a, ($b >= 0) ? '+' : '', $b ));
 		$image = $orig;
-		image_apply_gray_operator { 
+		image_apply_gray_operator {
 			my $i = shift;
 			$i->type(im::Float);
 			$i = ab( $i, $a, $b );
@@ -3059,12 +3059,12 @@ sub image_multiply
 				}
 			},
 		],
-		[ Label  => 
+		[ Label  =>
 			pack      => { side => 'top', fill => 'x', padx => 10, },
 			text      => '~Contrast',
 			focusLink => 'A',
-		],			
-		[ Slider => 
+		],
+		[ Slider =>
 			name      => 'A',
 			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
@@ -3076,12 +3076,12 @@ sub image_multiply
 			scheme    => ss::Thermometer,
 			onChange  => $change,
 		],
-		[ Label  => 
+		[ Label  =>
 			pack      => { side => 'top', fill => 'x', padx => 10, },
 			text      => '~Brightness',
 			focusLink => 'B',
-		],			
-		[ Slider => 
+		],
+		[ Slider =>
 			name      => 'B',
 			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
@@ -3092,12 +3092,12 @@ sub image_multiply
 			scheme    => ss::Thermometer,
 			onChange  => $change,
 		],
-		[ Label  => 
+		[ Label  =>
 			pack      => { side => 'top', fill => 'x', padx => 10 },
 			text      => '~Minimal threshold',
 			focusLink => 'Min',
-		],			
-		[ Slider => 
+		],
+		[ Slider =>
 			name      => 'Min',
 			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
@@ -3108,12 +3108,12 @@ sub image_multiply
 			scheme    => ss::Axis,
 			onChange  => $change,
 		],
-		[ Label  => 
+		[ Label  =>
 			pack      => { side => 'top', fill => 'x', padx => 10 },
 			text      => 'Ma~ximal threshold',
 			focusLink => 'Max',
-		],			
-		[ Slider => 
+		],
+		[ Slider =>
 			name      => 'Max',
 			pack      => { side => 'top', fill => 'x', pad => 10, },
 			width     => 400,
@@ -3152,7 +3152,7 @@ sub image_convolutions
 	};
 
 	image_preview_dialog( $orig, $title,
-		[ Slider => 
+		[ Slider =>
 			name      => 'Sigma',
 			pack      => { side => 'top', fill => 'x' },
 			width     => 400,
@@ -3164,7 +3164,7 @@ sub image_convolutions
 			scheme    => ss::Axis,
 			onChange  => $change,
 		],
-		[ CheckBox => 
+		[ CheckBox =>
 			name      => 'Laplacian',
 			text      => '~Laplacian',
 			pack      => { side => 'top', fill => 'x' },
@@ -3181,7 +3181,7 @@ sub magnify
 		return if $magnify;
 		@magnify_size = map { $_ * $scale } @MagnifyingGlassSize;
 		$magnify_zoom = 2;
-		my $x = $w-> insert( Widget => 
+		my $x = $w-> insert( Widget =>
 			size		=> \@magnify_size,
 			syncPaint	=> 1,
 			buffered	=> 1,
@@ -3241,14 +3241,14 @@ sub grab_screen
 	});
 	my $res;
 	$res = message_box( 'Grab screen', join(' ', (split "\n", <<MSG)), mb::Ok|mb::Abort, \%opt) if $ini->{ConfirmationGrab};
-Screen will be grabbed in $delay seconds after main window disappears. 
+Screen will be grabbed in $delay seconds after main window disappears.
 If that's too short, keep Control key pressed, so you'll have $delay seconds more
 MSG
 	$ini->{ConfirmationGrab} = 0 if defined($res) && $res == mb::Abort;
 
 	$w-> visible(0);
 
-	for ( 1..10) { 
+	for ( 1..10) {
 		sleep($delay);
 		$::application-> yield;
 		last unless $::application-> get_shift_state & km::Ctrl;
@@ -3287,12 +3287,12 @@ sub edit_palette
 		}
 	}
 
-	my $d = Prima::Dialog-> new( 
+	my $d = Prima::Dialog-> new(
 		text => 'Edit palette',
 		size => [25 * $ext[0] + 4, 25 * $ext[1] + $fh * 4],
 	);
-	
-	
+
+
 	my $grid = $d-> insert( GridViewer =>
 		origin			=> [0,0],
 		size			=> [$d-> size],
@@ -3303,15 +3303,15 @@ sub edit_palette
 		drawHGrid               => 0,
 		drawVGrid               => 0,
 		onDrawCell => sub {
-			my ( $self, $canvas, 
-				$col, $row, $indent, 
-				$sx1, $sy1, $sx2, $sy2, 
-				$cx1, $cy1, $cx2, $cy2, 
+			my ( $self, $canvas,
+				$col, $row, $indent,
+				$sx1, $sy1, $sx2, $sy2,
+				$cx1, $cy1, $cx2, $cy2,
 				$selected, $focused
 			) = @_;
 			my $index = $row * $ext[0] + $col;
-			$canvas-> backColor( 
-				($index > $#colormap) ? 
+			$canvas-> backColor(
+				($index > $#colormap) ?
 				cl::Back :
 				$current[$index]
 			);
@@ -3346,19 +3346,19 @@ sub edit_palette
 		},
 	);
 
-	my $ok = $d-> insert( Button => 
+	my $ok = $d-> insert( Button =>
 		text		=> '~OK',
 		origin		=> [ 15, $fh],
 		modalResult 	=> mb::OK,
 		default		=> 1,
 	);
-	
-	$d-> insert( Button => 
+
+	$d-> insert( Button =>
 		text		=> 'Cancel',
 		origin		=> [ $d-> width - $ok-> width - 15, $fh],
 		modalResult 	=> mb::Cancel,
 	);
-	
+
 	$cd = Prima::ColorDialog-> new(
 		onChange => sub {
 			my ( $row, $col) = ( int($curr_index / $ext[0]), $curr_index % $ext[0]);
@@ -3374,7 +3374,7 @@ sub edit_palette
 	);
 
 	my $r = $d-> execute;
-	
+
 	$d-> destroy;
 	$cd-> destroy;
 
@@ -3407,7 +3407,7 @@ sub slideshow_start
 			last_file_replace($f);
 		},
 	)-> start;
-		
+
 	$slideshow = 1;
 	update_window_title();
 }
@@ -3472,13 +3472,13 @@ sub last_file_add
 	if ( $x) {
 		$menu-> remove( $_-> [0]) for @$x;
 	}
-	
+
 	delete @$ini{@indexes};
 	my $idx = 1;
 	my @set;
 	for my $file ( @last_files) {
 		$ini-> {'LastFile' . $idx } = $file;
-		push @set, [ "~$idx $file", sub { 
+		push @set, [ "~$idx $file", sub {
 			if ( open_new_image($file)) {
 				last_file_add($filename);
 			}
@@ -3505,7 +3505,7 @@ sub last_file_replace
 }
 
 sub menuitem_toggle
-{ 
+{
 	$ini->{$_[1]} = $menu-> toggle( $_[1])
 }
 
@@ -3518,7 +3518,7 @@ sub menu_edit
 		size     => [750, 400],
 		borderStyle => bs::Sizeable,
 	);
-	$w-> insert( 'Prima::KeySelector::MenuEditor' => 
+	$w-> insert( 'Prima::KeySelector::MenuEditor' =>
 		pack         => { expand => 1, fill => 'both'},
 		menu         => $menu,
 	);
@@ -3627,7 +3627,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			(map {
 				my $id = $_;
 				[
-					"ext$id", $ini-> {"Ext$id"}, 
+					"ext$id", $ini-> {"Ext$id"},
 					"Alt+$id", "\@$_", sub { external_command($id) }
 				]
 			} (1..9))
@@ -3651,7 +3651,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		}],
 		['copyname' => 'Copy path to file' => sub {
 			my $fn = $filename;
-			eval { $fn = abs_path( $fn); };	
+			eval { $fn = abs_path( $fn); };
 			$fn =~ s/\//\\/g if $^O =~ /win32/i;
 			$::application-> Clipboard-> text($fn) if defined $fn;
 		}],
@@ -3681,8 +3681,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['N' => '~No halftoning'   => \&conversion_set],
 			[       'Posteri~zation'   => \&conversion_set],
 			['O' => '~Ordered'         => \&conversion_set],
-			['E' => '~Error diffusion' => \&conversion_set], 
-			['*P' => 'O~ptimized'      => \&conversion_set], 
+			['E' => '~Error diffusion' => \&conversion_set],
+			['*P' => 'O~ptimized'      => \&conversion_set],
 		]],
 		[ 'resize' => 'Re~size...' => 'Ctrl+R' => '^R' => \&image_resize, ],
 		[ 'rotate' => '~Rotate and mirror' => [
@@ -3823,8 +3823,8 @@ $iv = $w-> insert( ImageViewer =>
 	) : ()),
 );
 
-Prima::EventHook::install( 
-	sub { 
+Prima::EventHook::install(
+	sub {
 		fullscreen(0) if $fullscreen_x11;
 		slideshow_stop;
         1;
@@ -3864,7 +3864,7 @@ $iv-> update_view;
 try_preload_next_file();
 
 # uncomment this for simple benchmarking
-# open_next_image($w,'next') for 0..20; exit; 
+# open_next_image($w,'next') for 0..20; exit;
 
 $SIG{__DIE__} = sub {
 	print STDERR Carp::longmess;
@@ -3901,7 +3901,7 @@ FotoFix is a simple image viewer with simple capabilities to take care of
 freshly downloaded photos from your camera - can walk image lists, rotate
 images, and remove red eyes (with some luck). It was inspired by IrfanView for
 Windows, a great but unfortunately non-portable and closed-source product.
-My experience with various image viewers came to a point where I was no 
+My experience with various image viewers came to a point where I was no
 longer satisfied with any, so I wrote yet another one.
 
 =head1 INSTALLATION
@@ -3950,7 +3950,7 @@ file name will appear. Set empty string to delete the command shortcut.
 =head2 Rename
 
 Apply a substitutive perl regular expression to each file, where each filename
-will be stored in C<$_>, and file index in C<$.>. 
+will be stored in C<$_>, and file index in C<$.>.
 
 =head1 BUGS & FEATURES
 
