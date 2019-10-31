@@ -17,7 +17,7 @@ use warnings;
 use Prima 1.47 qw(
 	Application ImageViewer StdDlg Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
-	VB::VBLoader Image::AnimateGIF KeySelector RubberBand
+	VB::VBLoader Image::Animate KeySelector RubberBand
 );
 use Cwd qw(getcwd abs_path);
 use File::Copy;
@@ -1030,6 +1030,8 @@ sub open_new_image
 		$w-> {DelayTimer}-> stop;
 		$w-> {DelayTimer}-> start;
 	}
+
+	message( $i->{extras}->{truncated} ) if defined $i->{extras}->{truncated};
 
 	return 1;
 }
@@ -2333,7 +2335,7 @@ sub image_is_animation
 	my $c = $codecs-> [ $i-> {extras}-> {codecID} ];
 	return 0 unless                    # is it really libungif codec?
 		$c &&
-		$c-> {name} eq 'GIFLIB';
+		$c-> {name} =~ /^(GIFLIB|WebP)$/;
 	return 1;
 }
 
@@ -2341,7 +2343,7 @@ sub animation_load
 {
 	my $filename = shift;
 
-	my $player = Prima::Image::AnimateGIF-> load($filename);
+	my $player = Prima::Image::Animate-> load($filename);
 	message("Cannot load $filename as animation:$@"), return unless $player;
 
 	my $info = $player-> next;
