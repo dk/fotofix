@@ -1344,6 +1344,11 @@ sub image_info
 			$k = 'codec';
 			$v = $codecs-> [$v]-> {name};
 		} elsif ( ref($v)) {
+			if ( ref($v) eq 'HASH') {
+				for my $kk ( sort keys %$v ) {
+					push @items, [ "$k.$kk", $v->{$kk}];
+				}
+			}
 			next;
 		}
 		push @items, [ $k, $v];
@@ -2333,9 +2338,9 @@ sub image_is_animation
 		$i-> {extras}->{frames} > 1;
 	$codecs ||= Prima::Image-> codecs;
 	my $c = $codecs-> [ $i-> {extras}-> {codecID} ];
-	return 0 unless                    # is it really libungif codec?
+	return 0 unless
 		$c &&
-		$c-> {name} =~ /^(GIFLIB|WebP)$/;
+		$c-> {name} =~ /^(GIFLIB|WebP|PNG)$/;
 	return 1;
 }
 
