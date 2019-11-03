@@ -2328,21 +2328,7 @@ sub image_rotate
 	image_replace($image);
 }
 
-sub image_is_animation
-{
-	my $i = shift;
-	return 0 unless                    # more than 1 frame?
-		$i-> {extras} &&
-		defined($i-> {extras}->{codecID}) &&
-		$i-> {extras}->{frames} &&
-		$i-> {extras}->{frames} > 1;
-	$codecs ||= Prima::Image-> codecs;
-	my $c = $codecs-> [ $i-> {extras}-> {codecID} ];
-	return 0 unless
-		$c &&
-		$c-> {name} =~ /^(GIFLIB|WebP|PNG)$/;
-	return 1;
-}
+sub image_is_animation { defined Prima::Image::Animate->detect_animation(shift->{extras}) }
 
 sub animation_load
 {
