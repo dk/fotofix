@@ -2328,6 +2328,93 @@ sub image_rotate
 	image_replace($image);
 }
 
+sub image_rotate_custom
+{
+	my $orig = $image-> dup;
+	my $mask = Prima::Image->create(
+		type  => im::Byte,
+		size  => [$image->size],
+		color => cl::White,
+	);
+	$mask->bar(0,0,$mask->size);
+
+	my $title   = 'Rotate image';
+	my $scaling = ist::Triangle;
+
+	my $replace = sub {
+		my $self = shift;
+		my $img = $orig->dup;
+		$img->scaling($scaling);
+		$img->rotate($self->Angle->value);
+
+		my $msk = $mask->dup;
+		$msk->scaling($scaling);
+		$msk->rotate($self->Angle->value);
+
+		my $target = Prima::Image->new(
+			type  => im::RGB,
+			size  => [$img->size],
+			color => $self->Color->value,
+		);
+		$target->bar(0,0,$target->size);
+		$target->put_image(0,0,Prima::Icon->create_combined($img,$msk));
+
+		image_replace( $target);
+	};
+
+	image_preview_dialog( $orig, $title,
+		[ CircularSlider =>
+			pack      => { expand => 1, fill => 'both' },
+			size      => [400, 400],
+			min       => -180,
+			max       => 180,
+			value     => 0,
+			scheme    => ss::Thermometer,
+			increment => 30,
+			name      => 'Angle',
+			text      => '',
+			onChange  => sub {
+				my $self  = shift;
+				$self->owner->text( $title . ' ' . $self->value );
+				$replace->($self->owner);
+			}
+		],
+		[ Label    =>
+			pack      => { side => 'top', fill => 'x', pad => 10 },
+			text      => '~Scaling',
+			focusLink => 'Scaling',
+		],
+		[ ComboBox =>
+			name      => 'Scaling',
+			pack      => { side => 'top', fill => 'x', pad => 10 },
+			width     => 400,
+			height    => $w->font->height + 4,
+			style     => cs::DropDownList,
+			items     => [
+				sort { $scalings{$a} <=> $scalings{$b} }
+				grep { $scalings{$_} >= ist::Triangle }
+				keys %scalings
+			],
+			text      => 'Triangle',
+			onChange  => sub {
+				my $self = shift;
+				$scaling = $scalings{$self->text};
+				$replace->($self->owner);
+			}
+		],
+		[ Label    =>
+			pack      => { side => 'top', fill => 'x', pad => 10 },
+			text      => '~Fill',
+			focusLink => 'Color',
+		],
+		[ ColorComboBox =>
+			pack      => { side => 'top', fill => 'x', pad => 10 },
+			name      => 'Color',
+			onChange  => sub { $replace->(shift->owner) },
+		],
+	);
+}
+
 sub image_is_animation { defined Prima::Image::Animate->detect_animation(shift->{extras}) }
 
 sub animation_load
@@ -3682,6 +3769,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			[rotate3 => 'Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(270) }],
 			[rotate1 => 'Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(90) }],
 			[rotate2 => "Rotate ~180\xB0" => sub { image_rotate(180) }],
+			[rotate  => "Rotate ~custom"  => \&image_rotate_custom ],
 			[],
 			[mirror1 => 'Mirror ~vertical' => 'V' => 'v' => sub { image_mirror(1) }],
 			[mirror0 => 'Mirror ~horizontal' => 'H' => 'h' => sub { image_mirror(0) }],
