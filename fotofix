@@ -2340,16 +2340,42 @@ sub image_rotate_custom
 
 	my $title   = 'Rotate image';
 	my $scaling = ist::Triangle;
+	my $by_rotation = 1;
+	my $lock_change = 0;
 
 	my $replace = sub {
-		my $self = shift;
+		my ($self, $by_what) = @_;
 		my $img = $orig->dup;
+		return if $lock_change;
+
+		$by_rotation = $by_what if defined $by_what;
+
+		my (@m, $angle);
+		if ( $by_rotation ) {
+			$angle = $self->Angle->value; 
+		} else {
+			for (qw(mA mB mC mD)) {
+				my $v = $self->$_->text;
+				return unless $v =~ /^[-+]?\d+(.\d+)?(e[-+]\d+)?$/;
+				$v = $v + 0;
+				push @m, $v;
+			}
+		}
+
 		$img->scaling($scaling);
-		$img->rotate($self->Angle->value);
+		if ( $by_rotation) {
+			$img->rotate($angle);
+		} else {
+			$img->transform(@m);
+		}
 
 		my $msk = $mask->dup;
 		$msk->scaling($scaling);
-		$msk->rotate($self->Angle->value);
+		if ( $by_rotation) {
+			$msk->rotate($angle);
+		} else {
+			$msk->transform(@m);
+		}
 
 		my $target = Prima::Image->new(
 			type  => im::RGB,
@@ -2362,32 +2388,64 @@ sub image_rotate_custom
 		image_replace( $target);
 	};
 
+	my $fh = $w->font->height;
+	my $fw = $w->font->width;
+	my $oy = $fh * 4;
+	my $ow = $fh / 16;
+	my ($mx1, $mw1, $mx2, $mx3, $ox);
 	image_preview_dialog( $orig, $title,
-		[ CircularSlider =>
+		[ Widget => 
 			pack      => { expand => 1, fill => 'both' },
-			size      => [400, 400],
+			size      => [400 * $ow, 400 * $ow],
+			onSetup   => sub {
+				my $o = shift->owner;
+				($ox, $mx1, $mw1, $mx2, $mx3) = ($o->width, $o->mA->left, $o->mA->width, $o->mB->left, $o->lB->left);
+			},
+			onSize    => sub {
+				my $o = shift->owner;
+				return unless defined $mx1;
+				my $d = ($o->width - $ox) / 2;
+
+				$o->$_->width($mw1 + $d) for qw(mA mC);
+				$o->$_->left( $mx3 + $d) for qw(lB lD);
+				$o->$_->set( width => $mw1 + $d, left => $mx2 + $d) for qw(mB mD);
+			},
+		],
+		[ CircularSlider =>
+			origin    => [0, $oy + $fh * 4],
+			size      => [0,0],
+			growMode  => gm::Client,
 			min       => -180,
 			max       => 180,
 			value     => 0,
 			scheme    => ss::Thermometer,
 			increment => 30,
 			name      => 'Angle',
-			text      => '',
+			text      => 'Rotation angle',
 			onChange  => sub {
 				my $self  = shift;
-				$self->owner->text( $title . ' ' . $self->value );
-				$replace->($self->owner);
+				my $angle = $self->value * 180.0 / 3.141592653589793;
+				my $cos = cos($angle);
+				my $sin = sin($angle);
+				my $o = $self->owner;
+				$lock_change = 1;
+				$o->mA->text($cos);
+				$o->mB->text($sin);
+				$o->mC->text(-$sin);
+				$o->mD->text($cos);
+				$lock_change = 0;
+				$replace->($o, 1);
 			}
 		],
 		[ Label    =>
-			pack      => { side => 'top', fill => 'x', pad => 10 },
+			origin    => [10, $oy + $fh * 2 - 2],
 			text      => '~Scaling',
 			focusLink => 'Scaling',
 		],
 		[ ComboBox =>
 			name      => 'Scaling',
-			pack      => { side => 'top', fill => 'x', pad => 10 },
-			width     => 400,
+			origin    => [10, $oy],
+			width     => $fw * 15,
 			height    => $w->font->height + 4,
 			style     => cs::DropDownList,
 			items     => [
@@ -2403,14 +2461,66 @@ sub image_rotate_custom
 			}
 		],
 		[ Label    =>
-			pack      => { side => 'top', fill => 'x', pad => 10 },
+			origin    => [120 * $ow, $oy + $fh * 2 - 2],
 			text      => '~Fill',
 			focusLink => 'Color',
 		],
 		[ ColorComboBox =>
-			pack      => { side => 'top', fill => 'x', pad => 10 },
+			origin    => [120 * $ow, $oy],
 			name      => 'Color',
 			onChange  => sub { $replace->(shift->owner) },
+		],
+		[ Label    =>
+			origin    => [210 * $ow, $oy + $fh * 2],
+			text      => '~A:',
+			focusLink => 'mA',
+			name      => 'lA',
+		],
+		[ InputLine =>
+			origin    => [230 * $ow, $oy + $fh * 2],
+			name      => 'mA',
+			onChange  => sub { $replace->(shift->owner,0) },
+			text      => 1,
+			width     => 8 * $fw,
+		],
+		[ Label    =>
+			origin    => [290 * $ow, $oy + $fh * 2 - 2],
+			text      => '~B:',
+			focusLink => 'mB',
+			name      => 'lB',
+		],
+		[ InputLine =>
+			origin    => [310 * $ow, $oy + $fh * 2],
+			name      => 'mB',
+			onChange  => sub { $replace->(shift->owner,0) },
+			text      => 0,
+			width     => 8 * $fw,
+		],
+		[ Label    =>
+			origin    => [210 * $ow, $oy - 2],
+			text      => '~C:',
+			focusLink => 'mC',
+			name      => 'lC',
+		],
+		[ InputLine =>
+			origin    => [230 * $ow, $oy],
+			name      => 'mC',
+			text      => 0,
+			onChange  => sub { $replace->(shift->owner,0) },
+			width     => 8 * $fw,
+		],
+		[ Label    =>
+			origin    => [290 * $ow, $oy - 2],
+			text      => '~D:',
+			focusLink => 'mD',
+			name      => 'lD',
+		],
+		[ InputLine =>
+			origin    => [310 * $ow, $oy],
+			name      => 'mD',
+			text      => 1,
+			onChange  => sub { $replace->(shift->owner,0) },
+			width     => 8 * $fw,
 		],
 	);
 }
