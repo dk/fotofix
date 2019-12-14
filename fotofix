@@ -2424,7 +2424,7 @@ sub image_rotate_custom
 			scheme    => ss::Thermometer,
 			increment => 30,
 			name      => 'Angle',
-			text      => 'Rotation angle',
+			text      => '~Rotation angle',
 			onChange  => sub {
 				my $self  = shift;
 				my $angle = $self->value * 180.0 / 3.141592653589793;
