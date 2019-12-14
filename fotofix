@@ -4061,10 +4061,6 @@ try_preload_next_file();
 # uncomment this for simple benchmarking
 # open_next_image($w,'next') for 0..20; exit;
 
-$SIG{__DIE__} = sub {
-	print STDERR Carp::longmess;
-	die @_;
-};
 while ( 1) {
 	eval { run Prima; };
 	last unless $@;
