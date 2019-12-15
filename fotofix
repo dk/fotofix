@@ -2415,8 +2415,8 @@ sub image_rotate_custom
 			},
 		],
 		[ CircularSlider =>
-			origin    => [100/2, $oy + $fh * 4],
-			size      => [0,0],
+			origin    => [0, $oy + $fh * 4],
+			size      => [100,100 - ($oy + $fh * 4)],
 			growMode  => gm::Client,
 			min       => -180,
 			max       => 180,
@@ -2427,15 +2427,15 @@ sub image_rotate_custom
 			text      => '~Rotation angle',
 			onChange  => sub {
 				my $self  = shift;
-				my $angle = $self->value * 180.0 / 3.141592653589793;
-				my $cos = cos($angle);
-				my $sin = sin($angle);
+				my $angle = $self->value / 180.0 * 3.141592653589793;
+				my $cos = sprintf "%.4f", cos($angle);
+				my $sin = sprintf "%.4f", sin($angle);
 				my $o = $self->owner;
 				$lock_change = 1;
-				$o->mA->text($cos);
-				$o->mB->text($sin);
-				$o->mC->text(-$sin);
-				$o->mD->text($cos);
+				$o->mA->value($cos);
+				$o->mB->value($sin);
+				$o->mC->value(-$sin);
+				$o->mD->value($cos);
 				$lock_change = 0;
 				$replace->($o, 1);
 			}
@@ -2480,12 +2480,15 @@ sub image_rotate_custom
 			focusLink => 'mA',
 			name      => 'lA',
 		],
-		[ InputLine =>
+		[ SpinEdit =>
 			origin    => [30 + $dx2 + 3 * $fw, $oy + $fh * 2],
 			name      => 'mA',
 			onChange  => sub { $replace->(shift->owner,0) },
-			text      => 1,
+			value     => 1,
 			width     => 8 * $fw,
+			step      => 0.1,
+			min       => -20,
+			max       => 20,
 		],
 		[ Label    =>
 			origin    => [50 + $dx3, $oy + $fh * 2 - 2],
@@ -2493,12 +2496,15 @@ sub image_rotate_custom
 			focusLink => 'mB',
 			name      => 'lB',
 		],
-		[ InputLine =>
+		[ SpinEdit =>
 			origin    => [50 + $dx3 + 3 * $fw, $oy + $fh * 2],
 			name      => 'mB',
 			onChange  => sub { $replace->(shift->owner,0) },
-			text      => 0,
+			value     => 0,
 			width     => 8 * $fw,
+			step      => 0.1,
+			min       => -20,
+			max       => 20,
 		],
 		[ Label    =>
 			origin    => [30 + $dx2, $oy - 2],
@@ -2506,12 +2512,15 @@ sub image_rotate_custom
 			focusLink => 'mC',
 			name      => 'lC',
 		],
-		[ InputLine =>
+		[ SpinEdit =>
 			origin    => [30 + $dx2 + 3 * $fw, $oy],
 			name      => 'mC',
-			text      => 0,
+			value     => 0,
 			onChange  => sub { $replace->(shift->owner,0) },
 			width     => 8 * $fw,
+			step      => 0.1,
+			min       => -20,
+			max       => 20,
 		],
 		[ Label    =>
 			origin    => [50 + $dx3, $oy - 2],
@@ -2519,12 +2528,15 @@ sub image_rotate_custom
 			focusLink => 'mD',
 			name      => 'lD',
 		],
-		[ InputLine =>
+		[ SpinEdit =>
 			origin    => [50 + $dx3 + 3 * $fw, $oy],
 			name      => 'mD',
-			text      => 1,
+			value     => 1,
 			onChange  => sub { $replace->(shift->owner,0) },
 			width     => 8 * $fw,
+			step      => 0.1,
+			min       => -20,
+			max       => 20,
 		],
 	);
 }
