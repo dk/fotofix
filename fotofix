@@ -67,6 +67,7 @@ my (
 	$open_dialog, $save_dialog, $chdir_dialog, $print_dialog,
 	$slideshow, $animation, $codecs, %preloaded,
 	$ua,
+	$directories,
 );
 
 my $zoom = 1.0;
@@ -1369,6 +1370,49 @@ sub image_info
 	$d-> execute;
 }
 
+sub image_directories
+{
+	return $directories->bring_to_front if $directories;
+
+	$w->menu->dirs->check;
+
+	my $dirs = $ini_file->section('Directories');
+	$dirs->{"Dir$_"} //= '' for 0..9;
+
+	$directories = Prima::Window->new(
+		text      => 'Directories',
+		size      => [400, 300],
+		onDestroy => sub {
+			undef $directories,
+			$w->menu->dirs->uncheck,
+		},
+	);
+
+	$directories->insert( ListBox =>
+		name  => 'Selector',
+		pack  => { fill => 'both', expand => 1 },
+		items => [ map { "$_: " . $dirs->{"Dir$_"}} 0..9 ],
+		onClick => sub {
+			my $self = shift;
+			my $ix = $self->focusedItem;
+			my $dir = $self-> items->[$ix];
+			$dir =~ s/^\d+\:\s+//;
+			$chdir_dialog //= create_chdir_dialog();
+			$chdir_dialog-> set(
+				text      => "Choose directory to move to by Ctrl+$ix",
+				directory => $dir,
+			);
+			return unless $chdir_dialog-> execute == mb::Ok;
+			$dir = $chdir_dialog-> directory;
+			return message("No such directory '$dir'") unless -d $dir;
+			$self->items->[$ix] = "$ix: $dir";
+			$dirs->{"Dir$ix"} = $dir;
+			$self->repaint;
+			$self->clear_event;
+		},
+	);
+}
+
 sub filename2tag
 {
 	my $fn = shift;
@@ -1609,21 +1653,25 @@ sub files_multirun
 
 sub files_copy_move
 {
-	my ($op, $use_tags) = @_;
+	my ($op, $use_tags, $use_dir) = @_;
 	my $name = ucfirst $op;
 
 	my @f = files_get_selection($use_tags);
 	return unless @f;
-	$chdir_dialog = create_chdir_dialog
-		unless $chdir_dialog;
-	$chdir_dialog-> set(
-		text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
-		directory => $ini-> {ChdirPath},
-	);
-	return unless $chdir_dialog-> execute == mb::Ok;
-	my $dir = $ini-> {ChdirPath} = $chdir_dialog-> directory;
 
-	return message("No such directory '$dir'") unless -d $dir;
+	my $dir;
+	unless ( defined $use_dir ) {
+		$chdir_dialog //= create_chdir_dialog;
+		$chdir_dialog-> set(
+			text      => "$name " .  (( 1 == @f) ? $f[0] : scalar(@f) . ' files') . ' to...',
+			directory => $ini-> {ChdirPath},
+		);
+		return unless $chdir_dialog-> execute == mb::Ok;
+		$dir = $ini-> {ChdirPath} = $chdir_dialog-> directory;
+		return message("No such directory '$dir'") unless -d $dir;
+	} else {
+		$dir = $use_dir;
+	}
 
 	if ( $op eq 'move') {
 		my ( $basedir, $index, @files) = get_dir_list();
@@ -1678,6 +1726,22 @@ sub files_copy { files_copy_move( 'copy', 1 ) }
 sub files_move { files_copy_move( 'move', 1 ) }
 sub file_copy  { files_copy_move( 'copy', 0 ) }
 sub file_move  { files_copy_move( 'move', 0 ) }
+
+sub dir_move
+{
+	my ( $cmd, $ix ) = @_;
+	my $dir = $ini_file->section('Directories')->{"Dir$ix"};
+	if (!length $dir || ! -d $dir) {
+		image_directories();
+		$directories->Selector->focusedItem($ix);
+		$directories->Selector->notify('Click');
+		$dir = $ini_file->section('Directories')->{"Dir$ix"};
+		return if !length $dir || ! -d $dir;
+	}
+
+	return if message("Move to $dir?", mb::YesNo) != mb::Yes;
+	files_copy_move( $cmd, 1, $dir);
+}
 
 sub files_rename_exec
 {
@@ -3781,6 +3845,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		['save'   => '~Save image'     => 'Ctrl+S'       => '^S' => \&save_image],
 		['saveas' => 'S~ave as...'     => 'Ctrl+Shift+S' => '^#S'=> \&save_image_as],
 		['info'   => '~Information...' =>                        => \&image_info],
+		['dirs'   => '~Directories...' =>                        => \&image_directories],
 		[],
 		['first'  => '~First image'    => 'Home'         => kb::Home      => \&open_next_image ],
 		['next'   => '~Next image'     => 'Space'        => kb::Space     => \&open_next_image ],
@@ -3997,6 +4062,11 @@ ABOUT
 
 	accelItems => [
 		[ quit => quit => q => sub {$::application-> close }],
+		map {
+			my $ix = $_;
+			[$ix, $ix, km::Ctrl |           ord($ix), sub { dir_move( move => $ix ) }],
+			[$ix, $ix, km::Ctrl | km::Alt | ord($ix), sub { dir_move( copy => $ix ) }],
+		} 0..9,
 	],
 
 	icon      => Prima::StdBitmap::icon(0),
