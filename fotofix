@@ -643,13 +643,8 @@ sub fitting_set
 {
 	my ( $self, $type) = @_;
 
-	$ini->{$type} = $menu-> toggle( $type);
-
-	for ( qw(AutoBestFit ImageFit WindowFit)) {
-		next if $_ eq $type;
-		$ini->{$_} = 0;
-		$menu-> uncheck( $_);
-	}
+	$ini->{$_} = ($_ eq $type) ? 1 : 0
+		for qw(AutoBestFit ImageFit WindowFit);
 
 	if ( $type ne 'ImageFit' and not $ini->{$type}) {
 		$ini->{ImageFit} = 1;
@@ -674,9 +669,7 @@ sub scaling_set
 
 	my $scaling = $type;
 	$scaling =~ s/^Scaling//;
-
-	$menu-> uncheck( 'Scaling' . $ini-> {Scaling});
-	$menu-> check( $type, $ini-> {Scaling} = $scaling);
+	$ini-> {Scaling} = $scaling;
 
 	image_reset_display_buffer() if $image;
 }
@@ -687,7 +680,6 @@ sub sorting_set
 
 	my $sorting = $type;
 	$sorting =~ s/^sort_//;
-	$menu-> uncheck( 'sort_' . $ini-> {Sorting});
 	$menu-> check( $type, $ini-> {Sorting} = $sorting);
 	%neighbour_files_cache = ();
 }
@@ -3799,8 +3791,7 @@ sub transition_set
 {
 	my ( $self, $tx) = @_;
 	$tx =~ s/tx_//;
-	$menu-> uncheck( 'tx_' . $ini-> {Transition});
-	$menu-> check( "tx_$tx", $ini-> {Transition} = $tx);
+	$ini-> {Transition} = $tx;
 }
 
 $ini_file = Prima::IniFile-> create(
@@ -3852,7 +3843,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		['prev'   => '~Previous image' => 'Backspace'    => kb::Backspace => \&open_next_image ],
 		['last'   => 'Last image'      => 'End'          => kb::End       => \&open_next_image ],
 		[ 'Sort by'  => [
-			[ 'sort_alpha' => '~Name'     => \&sorting_set ],
+			[ '(sort_alpha' => '~Name'     => \&sorting_set ],
 			[ 'sort_date'  => '~Date'     => \&sorting_set ],
 			[ 'sort_none'  => '~Unsorted' => \&sorting_set ],
 			[],
@@ -3995,12 +3986,12 @@ $w = Prima::MainWindow-> create( menuItems => [
 		[fullscreen => 'F~ull screen' => 'Enter' => kb::Enter => sub {
 			fullscreen( not $fullscreen);
 		}],
-		[ ( $ini->{AutoBestFit} ? '*' : '') .
+		[ '('.( $ini->{AutoBestFit} ? '*' : '') .
 			'AutoBestFit' => 'Fit to ~window' => 'M' => 'm' => \&fitting_set,
 		],[
 		( $ini->{WindowFit} ? '*' : '') .
 			'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
-		],[ ( $ini->{ImageFit} ? '*' : '') .
+		],[ ')'.( $ini->{ImageFit} ? '*' : '') .
 			'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
 		],
 		[view_fit_1 => 'Fit to ~width' => sub { fitting_set_size(1) } ],
@@ -4009,10 +4000,10 @@ $w = Prima::MainWindow-> create( menuItems => [
 		[],
 		[ 'S~caling' => [
 			$UseBufferedZoom ? (
-			['Scaling0'   => '~System (unbuffered)'  => \&scaling_set ],
+			['(Scaling0'   => '~System (unbuffered)'  => \&scaling_set ],
 			['ScalingBox' => '~Nearest neighborhood' => \&scaling_set ],
 			) : (
-			['Scaling0'   => '~Nearest neighborhood' => \&scaling_set ],
+			['(Scaling0'   => '~Nearest neighborhood' => \&scaling_set ],
 			),
 			( map {
 			[ "Scaling$_" => $_                      => \&scaling_set ]
@@ -4030,7 +4021,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			['slideshow' => 'Start/stop ~slideshow' => 'S' => 's' => \&slideshow_toggle ],
 			[ slideshow_delay => 'Set slideshow ~delay...' => \&slideshow_set_delay ],
 			[],
-			[ 'tx_none', '~No effects'    => \&transition_set ],
+			[ '(tx_none', '~No effects'    => \&transition_set ],
 			[ 'tx_blend', '~Blend effect' => \&transition_set ],
 			[ 'tx_block', 'B~lock effect' => \&transition_set ],
 		]],
@@ -4111,10 +4102,9 @@ Prima::EventHook::install(
 
 $ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0'
 	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
-scaling_set( $w, 'Scaling' . $ini-> {Scaling});
-sorting_set( $w, 'sort_' . $ini-> {Sorting});
-
-transition_set( $w, 'tx_' . $ini-> {Transition});
+$menu->check('Scaling' . $ini->{Scaling});
+$menu->check('sort_' . $ini->{Sorting});
+$menu->check('tx_' . $ini->{Transition});
 
 update_menu_status();
 update_menu_tags();
