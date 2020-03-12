@@ -3774,9 +3774,9 @@ sub last_file_replace
 	$ini->{"LastFile$index"} = $newfile; # do not update menu!
 }
 
-sub menuitem_toggle
+sub menuitem_set
 {
-	$ini->{$_[1]} = $menu-> toggle( $_[1])
+	$ini->{$_[1]} = $_[2]
 }
 
 sub menu_edit
@@ -3856,8 +3856,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 			[ 'sort_date'  => '~Date'     => \&sorting_set ],
 			[ 'sort_none'  => '~Unsorted' => \&sorting_set ],
 			[],
-			[ ( $ini->{SortForward} ? '*' : '') .  'SortForward' => 'Ascending ~order' => sub {
-				menuitem_toggle(@_);
+			[ '@'.( $ini->{SortForward} ? '*' : '') .  'SortForward' => 'Ascending ~order' => sub {
+				menuitem_set(@_);
 				%neighbour_files_cache = ();
 			} ],
 		]],
@@ -4018,8 +4018,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 			[ "Scaling$_" => $_                      => \&scaling_set ]
 			} sort { $scalings{$a} <=> $scalings{$b} } grep { $_ ne 'Box' } keys %scalings ),
 			[],
-			[ ( $ini->{DelayScaling} ? '*' : '') .
-			'DelayScaling', 'Delay slow ~scaling' => \&menuitem_toggle ],
+			[ '@'.( $ini->{DelayScaling} ? '*' : '') .
+			'DelayScaling', 'Delay slow ~scaling' => \&menuitem_set ],
 		]],
 		['animation' => '~Animation' => [
 			[ ani_start  => '~Start/stop'  => 'Ctrl+A' => '^A' => \&animation_toggle ],
@@ -4039,16 +4039,16 @@ $w = Prima::MainWindow-> create( menuItems => [
 	['~Settings' => [
 		[shortcuts => '~Edit shortcuts' => \&menu_edit ],
 		[],
-		[ ( $ini->{AutoPosition} ? '*' : '') .
-		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_toggle ],
-		[ ( $ini->{ShowPartial} ? '*' : '') .
-		'ShowPartial',  'Show loading ~progress'   => \&menuitem_toggle ],
-		[ ( $ini->{Cartesian} ? '*' : '') .
-		'Cartesian',  'Cartesian coordinates'      => \&menuitem_toggle ],
-		[ ( $ini->{Preload} ? '*' : '') .
-		'Preload',  '~Preload next/prev image' => \&menuitem_toggle ],
-		[ ( $ini->{ExifOrientation} ? '*' : '') .
-		'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_toggle ],
+		[ '@'.( $ini->{AutoPosition} ? '*' : '') .
+		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_set ],
+		[ '@'.( $ini->{ShowPartial} ? '*' : '') .
+		'ShowPartial',  'Show loading ~progress'   => \&menuitem_set ],
+		[ '@'.( $ini->{Cartesian} ? '*' : '') .
+		'Cartesian',  'Cartesian coordinates'      => \&menuitem_set ],
+		[ '@'.( $ini->{Preload} ? '*' : '') .
+		'Preload',  '~Preload next/prev image' => \&menuitem_set ],
+		[ '@'.( $ini->{ExifOrientation} ? '*' : '') .
+		'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_set ],
 	]],
 	['~Help' => [
 		[information => "~Information" => "F1" => "F1" => sub { $::application-> open_help($0)}],
