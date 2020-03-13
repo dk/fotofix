@@ -641,9 +641,9 @@ sub update_window_size
 
 sub fitting_set
 {
-	my ( $self, $type) = @_;
+	my ( $self, $type, $set) = @_;
 
-	$ini->{$_} = ($_ eq $type) ? 1 : 0
+	$ini->{$_} = ($_ eq $type) ? $set : 0
 		for qw(AutoBestFit ImageFit WindowFit);
 
 	if ( $type ne 'ImageFit' and not $ini->{$type}) {
@@ -3986,12 +3986,12 @@ $w = Prima::MainWindow-> create( menuItems => [
 		[fullscreen => 'F~ull screen' => 'Enter' => kb::Enter => sub {
 			fullscreen( not $fullscreen);
 		}],
-		[ '('.( $ini->{AutoBestFit} ? '*' : '') .
+		[ '(@'.( $ini->{AutoBestFit} ? '*' : '') .
 			'AutoBestFit' => 'Fit to ~window' => 'M' => 'm' => \&fitting_set,
 		],[
-		( $ini->{WindowFit} ? '*' : '') .
+		'@'.($ini->{WindowFit} ? '*' : '') .
 			'WindowFit' => '~Fit to screen' => 'F' => 'f' => \&fitting_set,
-		],[ ')'.( $ini->{ImageFit} ? '*' : '') .
+		],[ '@)'.( $ini->{ImageFit} ? '*' : '') .
 			'ImageFit' => 'Fit to ~image' => 'Ctrl+I' => '^I' => \&fitting_set,
 		],
 		[view_fit_1 => 'Fit to ~width' => sub { fitting_set_size(1) } ],
