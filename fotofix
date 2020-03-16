@@ -537,43 +537,40 @@ sub update_menu_status
 
 sub try_max_window_size
 {
-	return unless $w-> visible; # WM doesn't care about unmapped windows
 	return if 2 == grep { defined } @max_window_size;
+	return unless $w-> visible; # WM doesn't care about unmapped windows
 
 	my @try_max_size      = ( shift, shift );
 	my @adjusted_for_zoom = ( shift, shift );
 
-	my $t;
-	$t = $w-> insert( Timer =>
+	my $t = $w->bring('TryMaxWindowSizeTimer') // $w-> insert( Timer =>
+		name    => 'TryMaxWindowSizeTimer',
 		timeout => 1,
 		onTick => sub {
-			$t-> destroy;
-			undef $t;
+			my @adjusted_for_zoom = @{$_[0]-> {AdjustedForZoom}};
+			my @try_max_size      = @{$_[0]-> {TryMaxSize}};
+			$_[0]-> destroy;
+
+			my @actual_size = $iv-> size;
+			for ( 0, 1) {
+				next if defined $max_window_size[$_];
+
+				if ( $adjusted_for_zoom[$_] > $actual_size[$_]) {
+					# window manager reduced the size
+					$max_window_size[$_] = $actual_size[$_];
+				} elsif ( abs( $try_max_size[$_] - $adjusted_for_zoom[$_]) < 3) {
+					# add lax for a couple of pixels for zoom roundoffs,
+					# and record max size as actually reached max size, just
+					# to stop further tries
+					$max_window_size[$_] = $actual_size[$_];
+				}
+			}
 		}
 	);
 
-	unless ($t-> start) {
-		$t->destroy;
-		return;
-	}
-	$iv->lock;
-	$::application->yield while $t;
-	$iv->unlock;
-
-	my @actual_size = $iv-> size;
-	for ( 0, 1) {
-		next if defined $max_window_size[$_];
-
-		if ( $adjusted_for_zoom[$_] > $actual_size[$_]) {
-			# window manager reduced the size
-			$max_window_size[$_] = $actual_size[$_];
-		} elsif ( abs( $try_max_size[$_] - $adjusted_for_zoom[$_]) < 3) {
-			# add lax for a couple of pixels for zoom roundoffs,
-			# and record max size as actually reached max size, just
-			# to stop further tries
-			$max_window_size[$_] = $actual_size[$_];
-		}
-	}
+	$t-> {TryMaxSize}      = \@try_max_size;
+	$t-> {AdjustedForZoom} = \@adjusted_for_zoom;
+	$t->destroy unless $t-> start;
 }
 
 sub update_window_size
