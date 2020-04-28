@@ -583,18 +583,22 @@ sub update_window_size
 		my @ivsize = map { int($z * $_ + .5)} $image-> size;
 		$w-> set(
 			size   => \@ivsize,
-			$ini->{AutoPosition} ?
+			($ini->{AutoPosition} ne 'asis') ?
 				( top => $w-> top ) : ()
 		);
 		try_max_window_size( @client, @ivsize );
 
-		if ( $ini->{AutoPosition}) {
+		if ( $ini->{AutoPosition} ne 'asis') {
 			my @fo = (0, 0);
 			my $apph = $::application-> height;
 			my @i = $::application-> get_indents;
 			$apph -= $i[3];
-			$fo[$_] += $i[$_] for 0,1;
 			my @fs = $w-> frameSize;
+			if ($ini->{AutoPosition} eq 'right') {
+				$fo[0] = $::application-> width - $fs[0] - $i[2];
+			} else {
+				$fo[$_] += $i[$_] for 0,1;
+			}
 			$fo[1] = $apph - $fs[1];
 			$w-> frameOrigin( @fo);
 		}
@@ -619,12 +623,12 @@ sub update_window_size
 			my @fs1 = $w-> frameSize;
 			$w-> set(
 				size => \@is,
-				( $ini->{AutoPosition} ?
+				(( $ini->{AutoPosition} ne 'asis') ?
 					( top => $w-> top ) : ())
 			);
 			my @fs2 = $w-> frameSize;
 			$w-> frameOrigin( $fo[0], $fo[1] + $fs1[1] - $fs2[1])
-				if $ini->{AutoPosition};
+				if $ini->{AutoPosition} ne 'asis';
 			# changing frame size is a tricky business, menu might wrap,
 			# window manager might behave strangely, etc... give it
 			# just one more try to set the minimum client size we want
@@ -3794,6 +3798,14 @@ sub transition_set
 	$ini-> {Transition} = $tx;
 }
 
+sub position_set
+{
+	my ( $self, $pos) = @_;
+	$pos =~ s/pos_//;
+	$ini-> {AutoPosition} = $pos;
+	update_window_size if $pos ne 'asis';
+}
+
 $ini_file = Prima::IniFile-> create(
 	file    => Prima::Utils::path('FotoFix'),
 		default => [
@@ -3804,7 +3816,7 @@ $ini_file = Prima::IniFile-> create(
 				Path         => '.',
 				ChdirPath    => '.',
 				SlideDelay   => 3,
-				AutoPosition => 0,
+				AutoPosition => 'asis',
 				ShowPartial  => 1,
 				Cartesian    => 0,
 				Preload      => 1,
@@ -4030,8 +4042,11 @@ $w = Prima::MainWindow-> create( menuItems => [
 	['~Settings' => [
 		[shortcuts => '~Edit shortcuts' => \&menu_edit ],
 		[],
-		[ '@'.( $ini->{AutoPosition} ? '*' : '') .
-		'AutoPosition' => 'C~hange window position when resizing' => \&menuitem_set ],
+		['~Window position' => [
+			['(pos_asis', 'Keep ~as is' => \&position_set ],
+			['pos_left',  'Keep ~left'  => \&position_set ],
+			['pos_right', 'Keep ~right' => \&position_set ],
+		]],
 		[ '@'.( $ini->{ShowPartial} ? '*' : '') .
 		'ShowPartial',  'Show loading ~progress'   => \&menuitem_set ],
 		[ '@'.( $ini->{Cartesian} ? '*' : '') .
@@ -4103,8 +4118,9 @@ Prima::EventHook::install(
 $ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0'
 	unless exists $ini-> {Scaling} and $menu-> has_item( 'Scaling' . $ini-> {Scaling});
 $menu->check('Scaling' . $ini->{Scaling});
-$menu->check('sort_' . $ini->{Sorting});
-$menu->check('tx_' . $ini->{Transition});
+$menu->check('sort_'   . $ini->{Sorting});
+$menu->check('tx_'     . $ini->{Transition});
+$menu->check('pos_'    . $ini->{AutoPosition});
 
 update_menu_status();
 update_menu_tags();
