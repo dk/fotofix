@@ -15,9 +15,9 @@
 use strict;
 use warnings;
 use Prima 1.47 qw(
-	Application ImageViewer StdDlg Utils DetailedList Grids
-	MsgBox IniFile EventHook ComboBox FileDialog ColorDialog
-	VB::VBLoader Image::Animate KeySelector RubberBand
+	Application ImageViewer Utils DetailedList Grids
+	MsgBox IniFile EventHook ComboBox Dialog::FileDialog Dialog::ColorDialog
+	Dialog::ImageDialog Dialog::PrintDialog VB::VBLoader Image::Animate KeySelector RubberBand
 );
 use Cwd qw(getcwd abs_path);
 use File::Copy;
@@ -862,7 +862,7 @@ sub open_image
 
 	my $save = $image;
 
-	$open_dialog = Prima::ImageOpenDialog-> create(
+	$open_dialog = Prima::Dialog::ImageOpenDialog-> create(
 		onHeaderReady => sub {
 			$image = $_[1];
 			update_window_size();
@@ -1274,7 +1274,7 @@ sub save_image_as
 {
 	my $ok;
 	$image-> {extras}->{codecID} = $filecodec;
-	$save_dialog = Prima::ImageSaveDialog-> create()
+	$save_dialog = Prima::Dialog::ImageSaveDialog-> create()
 		unless $save_dialog;
 	$save_dialog-> set(
 		directory => $ini-> {Path},
@@ -1553,7 +1553,7 @@ sub latest_dirs_update
 
 sub create_chdir_dialog
 {
-	Prima::ChDirDialog-> new(
+	Prima::Dialog::ChDirDialog-> new(
 		menuItems => [
 			[ '~File' => [
 				[ '~New folder...' => 'F7', 'F7', sub {
@@ -1906,7 +1906,7 @@ sub file_print
 	return unless $image;
 
 	unless ($print_dialog) {
-		$print_dialog = Prima::PrintSetupDialog-> create( menuItems => [[
+		$print_dialog = Prima::Dialog::PrintDialog-> create( menuItems => [[
 			'~Set margins...' => sub {
 				while (1) {
 					my $t = input_box(
@@ -2757,7 +2757,7 @@ sub
 	}},
 	'Color' => {
 		class   => 'Prima::ColorComboBox',
-		module  => 'Prima::ColorDialog',
+		module  => 'Prima::Dialog::ColorDialog',
 		profile => {
 			owner => 'Form1',
 			tabOrder => 5,
@@ -3625,7 +3625,7 @@ sub edit_palette
 		modalResult 	=> mb::Cancel,
 	);
 
-	$cd = Prima::ColorDialog-> new(
+	$cd = Prima::Dialog::ColorDialog-> new(
 		onChange => sub {
 			my ( $row, $col) = ( int($curr_index / $ext[0]), $curr_index % $ext[0]);
 			$current[ $curr_index ] = $_[0]-> value;
