@@ -2216,6 +2216,16 @@ sub iv_size
 	)-> start;
 }
 
+sub iv_dragend
+{
+	my ( $self, $clip, $action, $mod, $x, $y, undef, $answer) = @_;
+
+	my $url = $clip->text;
+	return $answer->{allow} = 0 if $url !~ m[^file://(.*?)[\n\r]*$];
+	open_new_image($1);
+	$answer->{action} = dnd::Copy;
+}
+
 sub conversion_set
 {
 	my ( $self, $menuID) = @_;
@@ -4092,6 +4102,7 @@ $iv = $w-> insert( ImageViewer =>
 	selectable    => 1,
 	name          => 'IV',
 	zoomPrecision => 1000,
+	dndAware      => 'Text',
 	valignment    => ta::Middle,
 	alignment     => ta::Center,
 	onMouseDown   => \&iv_mousedown,
@@ -4100,6 +4111,7 @@ $iv = $w-> insert( ImageViewer =>
 	onMouseWheel  => \&iv_mousewheel,
 	onPaint       => \&iv_paint,
 	onSize        => \&iv_size,
+	onDragEnd     => \&iv_dragend,
 
 	( $fullscreen_x11 ? (
 	onKeyDown    => \&iv_keydown
