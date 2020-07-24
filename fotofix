@@ -2220,9 +2220,18 @@ sub iv_dragend
 {
 	my ( $self, $clip, $action, $mod, $x, $y, undef, $answer) = @_;
 
-	my $url = $clip->text;
-	return $answer->{allow} = 0 if $url !~ m[^file://(.*?)[\n\r]*$];
-	open_new_image($1);
+	my $file;
+	$answer->{allow} = 0;
+	if ( $clip->has_format('Text')) {
+		my $url = $clip->text;
+		return if $url !~ m[^file://(.*?)[\n\r]*$];
+		$file = 1;
+	} elsif ( $clip->has_format('FileName')) {
+		$file = $clip->fetch('FileName');
+	} else {
+		return;
+	}
+	open_new_image($file);
 	$answer->{action} = dnd::Copy;
 }
 
@@ -3849,6 +3858,7 @@ $ini_file = Prima::IniFile-> create(
 );
 $ini = $ini_file-> section('Main');
 
+$::application->Clipboard->register_format('FileName') if $^O =~ /win32/i;
 
 $w = Prima::MainWindow-> create( menuItems => [
 	[ 'file' => '~File' => [
@@ -4102,7 +4112,7 @@ $iv = $w-> insert( ImageViewer =>
 	selectable    => 1,
 	name          => 'IV',
 	zoomPrecision => 1000,
-	dndAware      => 'Text',
+	dndAware      => 1,
 	valignment    => ta::Middle,
 	alignment     => ta::Center,
 	onMouseDown   => \&iv_mousedown,
