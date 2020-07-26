@@ -2225,13 +2225,18 @@ sub iv_dragend
 	if ( $clip->has_format('Text')) {
 		my $url = $clip->text;
 		return if $url !~ m[^file://(.*?)[\n\r]*$];
-		$file = 1;
+		$file = $1;
 	} elsif ( $clip->has_format('FileName')) {
 		$file = $clip->fetch('FileName');
 	} else {
 		return;
 	}
-	open_new_image($file);
+	if ( -d $file ) {
+		$filename = "$file/.";
+		open_next_image($w, 'first');
+	} else {
+		open_new_image($file);
+	}
 	$answer->{action} = dnd::Copy;
 }
 
