@@ -478,7 +478,7 @@ sub update_window_title
 		my $i = Prima::DeviceBitmap-> create(
 			width      => $w-> width,
 			height     => $w-> height,
-			monochrome => 1,
+			type       => dbt::Pixmap,
 			color      => cl::White,
 			backColor  => cl::Black,
 			font       => $iv->font,
