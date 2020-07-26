@@ -35,10 +35,6 @@ my $VERSION = 1.80;
 my $UseBufferedZoom =
 	( $::application-> get_system_info->{apc} == apc::Unix) ? 0 : 1;
 
-# used in fullscreen mode
-my $UseShapeExtension =
-	$::application-> get_system_value( sv::ShapeExtension);
-
 # This is the only parameter the red eye detector cares about, and is a balance of
 # how much green and blue should be there to counterbalance the red. For example,
 # 1.0 (default) will remove these red spots where the intensity or red is more
@@ -469,24 +465,10 @@ sub update_window_title
 	my $infostr = "$tag_info$is_modified$str";
 
 	$infostr .= $preloaded{loading} if defined $preloaded{loading};
+	$iv-> FullScreenStatus->{S} = $infostr if $fullscreen;
 
 	$w-> text( "FotoFix - $infostr");
 	$::application-> name( "FotoFix - $str");
-
-	if ( $fullscreen and $UseShapeExtension) {
-		my $w = $iv-> FullScreenStatus;
-		my $i = Prima::DeviceBitmap-> create(
-			width      => $w-> width,
-			height     => $w-> height,
-			type       => dbt::Pixmap,
-			color      => cl::White,
-			backColor  => cl::Black,
-			font       => $iv->font,
-		);
-		$i-> clear;
-		$i-> text_out( $infostr, 5, $i-> font-> descent);
-		$w-> shape( $i-> image);
-	}
 }
 
 sub update_menu_tags
@@ -756,22 +738,24 @@ sub fullscreen
 	$fullscreen_x11 ?
 		&fullscreen_x11 :
 		&fullscreen_win32;
-	if ( $UseShapeExtension) {
-		if ( $f) {
-			$iv-> insert( Widget =>
-				name      => 'FullScreenStatus',
-				height    => $iv-> font-> height,
-				left      => 0,
-				top       => $iv-> height - 5,
-				width     => $iv-> width,
-				backColor => cl::LightGreen,
-				visible   => 0,
-			);
-			update_window_title();
-			$iv-> FullScreenStatus-> visible(1);
-		} else {
-			$iv-> FullScreenStatus-> destroy;
-		}
+	if ( $f) {
+		$iv-> insert( Widget =>
+			name      => 'FullScreenStatus',
+			height    => $iv-> font-> height,
+			left      => 0,
+			top       => $iv-> height - 5,
+			width     => $iv-> width,
+			color     => cl::LightGreen,
+			visible   => 0,
+			transparent => 1,
+			onPaint => sub {
+				$_[0]-> text_out( $_[0]->{S}, 10, $_[0]-> height - $_[0]-> font-> width - 10);
+			},
+		);
+		update_window_title();
+		$iv-> FullScreenStatus-> visible(1);
+	} else {
+		$iv-> FullScreenStatus-> destroy;
 	}
 	update_window_size();
 }
@@ -2187,10 +2171,6 @@ sub iv_paint
 
 	$self-> on_paint( $canvas);
 	$canvas-> translate(0,0);
-	if ( $fullscreen and not($UseShapeExtension) and $filename) {
-		$canvas-> color( cl::LightGreen);
-		$canvas-> text_out( $filename, 10, $canvas-> height - $canvas-> font-> width - 10);
-	}
 	if ( $region) {
 		$canvas-> color( cl::Set);
 		$canvas-> rop( rop::XorPut);
