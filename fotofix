@@ -553,6 +553,7 @@ sub try_max_window_size
 	$t-> {TryMaxSize}      = \@try_max_size;
 	$t-> {AdjustedForZoom} = \@adjusted_for_zoom;
 	$t->destroy unless $t-> start;
+	$::application->yield;
 }
 
 sub update_window_size
@@ -2206,6 +2207,8 @@ sub iv_dragend
 		my $url = $clip->text;
 		return if $url !~ m[^file://(.*?)[\n\r]*$];
 		$file = $1;
+		$file =~ s/%([0-9a-f]{2})/chr(hex($1))/gei;
+		utf8::downgrade($file);
 	} elsif ( $clip->has_format('FileName')) {
 		$file = $clip->fetch('FileName');
 	} else {
