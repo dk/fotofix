@@ -1958,6 +1958,34 @@ sub file_print
 	$p->end_doc;
 }
 
+my %pids;
+sub file_fork
+{
+	my @cmd = ($0);
+	push @cmd, $filename if defined $filename;
+	if ( $^O =~ /win32/) {
+		return Prima::message("Error: not implemented");
+	} else {
+		unless ( $pids{initialized}) {
+			$pids{initialized}++;
+			require POSIX;
+			$SIG{CHLD} = sub {
+				while ( 1 ) {
+					my $kid = waitpid(-1, POSIX::WNOHANG());
+					last unless $kid;
+					delete $pids{$kid};
+				}
+			};
+		}
+		my $pid = fork;
+		return Prima::message("Error: $!") unless defined $pid;
+		unless ( $pid ) {
+			system @cmd;
+			exit;
+		}
+	}
+}
+
 sub external_command_edit
 {{
 	my $num = input_box(
@@ -3916,6 +3944,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		]],
         	['print' => '~Print...' => 'Ctrl+P' => '^P' => \&file_print ],
 		[],
+		[fork => 'For~k'          => \&file_fork ],
 		[exit => 'E~xit'          => 'Esc'  => kb::Escape => sub {
 			if ( $magnify) {
 				magnify(0);
