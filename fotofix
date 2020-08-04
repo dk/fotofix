@@ -1963,20 +1963,18 @@ sub file_fork
 {
 	my @cmd = ($0);
 	push @cmd, $filename if defined $filename;
-	if ( $^O =~ /win32/) {
-		return Prima::message("Error: not implemented");
-	} else {
-		unless ( $pids{initialized}) {
-			$pids{initialized}++;
-			require POSIX;
-			$SIG{CHLD} = sub { 1 while waitpid(-1, POSIX::WNOHANG()) > 0 };
-		}
-		my $pid = fork;
-		return Prima::message("Error: $!") unless defined $pid;
-		unless ($pid) {
-			system @cmd;
-			exit;
-		}
+	return system "start", "/b", $^X, @cmd if $^O =~ /win32/i;
+
+	unless ( $pids{initialized}) {
+		$pids{initialized}++;
+		require POSIX;
+		$SIG{CHLD} = sub { 1 while waitpid(-1, POSIX::WNOHANG()) > 0 };
+	}
+	my $pid = fork;
+	return Prima::message("Error: $!") unless defined $pid;
+	unless ($pid) {
+		system @cmd;
+		exit;
 	}
 }
 
