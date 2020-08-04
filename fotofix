@@ -1969,17 +1969,11 @@ sub file_fork
 		unless ( $pids{initialized}) {
 			$pids{initialized}++;
 			require POSIX;
-			$SIG{CHLD} = sub {
-				while ( 1 ) {
-					my $kid = waitpid(-1, POSIX::WNOHANG());
-					last unless $kid;
-					delete $pids{$kid};
-				}
-			};
+			$SIG{CHLD} = sub { 1 while waitpid(-1, POSIX::WNOHANG()) > 0 };
 		}
 		my $pid = fork;
 		return Prima::message("Error: $!") unless defined $pid;
-		unless ( $pid ) {
+		unless ($pid) {
 			system @cmd;
 			exit;
 		}
