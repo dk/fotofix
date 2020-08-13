@@ -465,7 +465,10 @@ sub update_window_title
 	my $infostr = "$tag_info$is_modified$str";
 
 	$infostr .= $preloaded{loading} if defined $preloaded{loading};
-	$iv-> FullScreenStatus->{S} = $infostr if $fullscreen;
+	if ($fullscreen) {
+		$iv-> FullScreenStatus->{S} = $infostr;
+		$iv-> FullScreenStatus->repaint;
+	}
 
 	$w-> text( "FotoFix - $infostr");
 	$::application-> name( "FotoFix - $str");
