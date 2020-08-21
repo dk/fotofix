@@ -556,7 +556,9 @@ sub try_max_window_size
 	$t-> {TryMaxSize}      = \@try_max_size;
 	$t-> {AdjustedForZoom} = \@adjusted_for_zoom;
 	$t->destroy unless $t-> start;
+	$w->enabled(0);
 	$::application->yield;
+	$w->enabled(1);
 }
 
 sub update_window_size
