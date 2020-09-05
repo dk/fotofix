@@ -965,9 +965,14 @@ sub open_new_image
 		$image = $i;
 
 		image_reset_display_buffer(); # this is fast, zoom = 1
-
 		update_window_size();
 		$window_size_updated = 1;
+		my @r2 = $iv-> client_to_screen( 0, 0, $iv-> size);
+		if ( $r2[2] > $r[2] || $r2[3] > $r[3] ) {
+			$blend1->scaling(ist::None);
+			$blend1->width( $r2[2] - $r2[0] ) if $blend1->width < $r2[2] - $r2[0];
+			$blend1->height( $r2[3] - $r2[1] ) if $blend1->height < $r2[3] - $r2[1];
+		}
 
 		$blend2 = $blend1-> dup;
 		$blend2-> begin_paint;
@@ -981,6 +986,7 @@ sub open_new_image
 		$w-> SlideshowTimer-> start if $w-> SlideshowTimer;
 
 		$iv-> end_paint;
+		$iv-> repaint;
 	}
 
 	return 1 if
@@ -995,8 +1001,8 @@ sub open_new_image
 
 	unless ( $window_size_updated) {
 		$ini-> {Scaling} = $UseBufferedZoom ? 'Box' : '0' if $delay_scaling;
-		image_reset_display_buffer();
 		update_window_size();
+		image_reset_display_buffer();
 	}
 	update_window_title();
 	update_menu_status();
@@ -4184,6 +4190,14 @@ try_preload_next_file();
 
 # uncomment this for simple benchmarking
 # open_next_image($w,'next') for 0..20; exit;
+
+#my $z = \&Prima::ImageViewer::set_zoom;
+#*Prima::ImageViewer::set_zoom = sub {
+#	print "=========($_[1])=========\n";
+#	print Carp::longmess;
+#	$z->(@_);
+#};
+
 
 while ( 1) {
 	eval { run Prima; };
