@@ -1048,6 +1048,7 @@ sub open_url
 	$url =~ s[\?.*][];
 	open_new_image( $handle, filename => $url );
 	$modified = 1;
+	return 'ok';
 }
 
 sub open_url_dialog
@@ -2236,7 +2237,29 @@ sub iv_dragend
 
 	my $file;
 	$answer->{allow} = 0;
-	if ( $clip->has_format('Text')) {
+	if ( $clip->has_format('text/html')) {
+		my $html = $clip->fetch('text/html');
+		$html = Encode::decode('utf-16-le', $html) if $html =~ /^<\x{00}/;
+		if ( $html =~ /<\s*img\s+[^>]*\bsrc=['"](.*?)["']/i ) {
+			my $url = $1;
+			if ( $url =~ /^http/i ) {
+				$answer->{allow}++ if (open_url($url) // '') eq 'ok';
+			} elsif ( $url =~ /data:image\/(\w+);base64,(.*)$/ ) {
+				my ( $codec, $data ) = ($1, $2);
+				eval { require MIME::Base64 };
+				return message("Please install MIME::Base64") if $@;
+				$data = MIME::Base64::decode($data);
+				return unless defined $data;
+				open( my $handle, '<', \$data) or return;
+				local $@;
+				my $i = Prima::Image-> load($handle, loadExtras => 1 );
+				return message($@) unless $i;
+				image_replace( $i);
+				$answer->{allow}++;
+			}
+		}
+		return;
+	} elsif ( $clip->has_format('Text')) {
 		my $url = $clip->text;
 		return if $url !~ m[^file://(.*?)[\n\r]*$];
 		$file = $1;
@@ -3889,6 +3912,7 @@ $ini_file = Prima::IniFile-> create(
 $ini = $ini_file-> section('Main');
 
 $::application->Clipboard->register_format('FileName') if $^O =~ /win32/i;
+$::application->Clipboard->register_format('text/html');
 
 $w = Prima::MainWindow-> create( menuItems => [
 	[ 'file' => '~File' => [
