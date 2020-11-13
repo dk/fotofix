@@ -1921,7 +1921,7 @@ sub file_print
 	}
 	return unless $print_dialog-> execute;
 
-	my $p = $::application-> get_printer;
+	my $p = $print_dialog-> printer;
 	return message_box('Printer error', $@) unless $p-> begin_doc( $filename);
 
 	my ($iw, $ih, $pw, $ph) = ( $image->size, $p->size );
