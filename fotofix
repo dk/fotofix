@@ -914,6 +914,7 @@ sub open_new_image
 	if ( $preloaded{usable} and $preloaded{image} ) {
 		$ok = 1;
 		$i = $preloaded{image};
+		$warning = $preloaded{warn};
 	} elsif ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
 		$i = Prima::Image-> new;
 		$image_is_loading++;
@@ -1144,13 +1145,18 @@ sub preload_next_file
 	%preloaded = ( loading => ' .o' );
 	update_window_title;
 
-	my $ok = $i-> load($name, load_params);
+	my ( $ok, $warning );
+	{
+		local $SIG{__WARN__} = sub { $warning = shift };
+		$ok = $i-> load($name, load_params);
+	}
 	%preloaded = ();
 	goto LEAVE unless $ok;
 
 	%preloaded = (
 		name  => $name,
 		image => $i,
+		warn  => $warning,
 	);
 
 	goto LEAVE if image_is_animation( $i );
