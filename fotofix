@@ -909,6 +909,7 @@ sub open_new_image
 	my $ok;
 	my $reset_zoom = 1;
 	my $window_size_updated;
+	my $warning;
 
 	if ( $preloaded{usable} and $preloaded{image} ) {
 		$ok = 1;
@@ -923,13 +924,19 @@ sub open_new_image
 			update_window_size;
 			$reset_zoom = 0;
 		});
-		$ok = $i-> load($handle, load_params);
+		{
+			local $SIG{__WARN__} = sub { $warning = shift };
+			$ok = $i-> load($handle, load_params);
+		}
 		$i-> remove_notification( $id);
 		$iv-> unwatch_load_progress;
 		$image_is_loading--;
 	} else {
 		$i = Prima::Image-> new;
-		$ok = $i-> load($handle, load_params);
+		{
+			local $SIG{__WARN__} = sub { $warning = shift };
+			$ok = $i-> load($handle, load_params);
+		}
 	}
 
 	# failed
@@ -940,6 +947,10 @@ sub open_new_image
 		}
 		message( "Cannot load image $fn:$@");
 		return 0;
+	}
+	if ( defined $warning ) {
+		$warning =~ s/ at line.*//;
+		message($warning);
 	}
 
 	# succeeded
@@ -2250,10 +2261,16 @@ sub iv_dragend
 				return message("Please install MIME::Base64") if $@;
 				$data = MIME::Base64::decode($data);
 				return unless defined $data;
+				my $warning;
 				open( my $handle, '<', \$data) or return;
 				local $@;
+				local $SIG{__WARN__} = sub { $warning = shift };
 				my $i = Prima::Image-> load($handle, loadExtras => 1 );
 				return message($@) unless $i;
+				if ( defined $warning ) {
+					$warning =~ s/ at line.*//;
+					message($warning);
+				}
 				image_replace( $i);
 				$answer->{allow}++;
 			}
