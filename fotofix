@@ -4058,8 +4058,8 @@ $w = Prima::MainWindow-> create( menuItems => [
 		]],
 		[ 'resize' => 'Re~size...' => 'Ctrl+R' => '^R' => \&image_resize, ],
 		[ 'rotate' => '~Rotate and mirror' => [
-			[rotate3 => 'Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(270) }],
-			[rotate1 => 'Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(90) }],
+			[rotate3 => 'Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(90) }],
+			[rotate1 => 'Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(270) }],
 			[rotate2 => "Rotate ~180\xB0" => sub { image_rotate(180) }],
 			[rotate  => "Rotate ~custom"  => \&image_rotate_custom ],
 			[],
