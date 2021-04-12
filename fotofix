@@ -14,7 +14,7 @@
 
 use strict;
 use warnings;
-use Prima 1.47 qw(
+use Prima 1.60 qw(
 	Application ImageViewer Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox Dialog::FileDialog Dialog::ColorDialog
 	Dialog::ImageDialog Dialog::PrintDialog VB::VBLoader Image::Animate KeySelector RubberBand
