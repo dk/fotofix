@@ -994,7 +994,10 @@ sub open_new_image
 
 		# do the transition
 		$w-> SlideshowTimer-> stop if $w-> SlideshowTimer;
+		my $fs = $iv->bring('FullScreenStatus');
+		$fs->hide if $fs;
 		transition_images( $blend1, $blend2);
+		$fs->show if $fs;
 		$w-> SlideshowTimer-> start if $w-> SlideshowTimer;
 
 		$iv-> end_paint;
