@@ -64,6 +64,7 @@ my (
 	$slideshow, $animation, $codecs, %preloaded,
 	$ua,
 	$directories,
+	$perl_errors,
 );
 
 my $zoom = 1.0;
@@ -104,6 +105,31 @@ DD
 		mask   => substr($_,128,128),
 	);
 	create_pointer( $icons{hand});
+}
+
+sub perl_warner
+{
+	undef $perl_errors;
+	return sub {
+		$perl_errors->{warning} = shift;
+		$perl_errors->{stack} = Carp::longmess;
+	}
+}
+
+sub perl_warner_check
+{
+	if ( defined $perl_errors ) {
+		$perl_errors->{warning} =~ s/ at line.*//;
+		if ( mb::Retry == message_box(
+			'Warning',
+			$perl_errors->{warning},
+			mb::Warning|mb::Retry|mb::OK,
+			{ buttons => { mb::Retry => { text => '~Trace' }}},
+		)) {
+			message($perl_errors->{stack});
+		}
+	}
+	undef $perl_errors;
 }
 
 sub create_pointer
@@ -909,12 +935,11 @@ sub open_new_image
 	my $ok;
 	my $reset_zoom = 1;
 	my $window_size_updated;
-	my $warning;
 
 	if ( $preloaded{usable} and $preloaded{image} ) {
 		$ok = 1;
 		$i = $preloaded{image};
-		$warning = $preloaded{warn};
+		$perl_errors = $preloaded{warn};
 	} elsif ( not($opt{slideshow}) and $ini-> {ShowPartial}) {
 		$i = Prima::Image-> new;
 		$image_is_loading++;
@@ -926,7 +951,7 @@ sub open_new_image
 			$reset_zoom = 0;
 		});
 		{
-			local $SIG{__WARN__} = sub { $warning = shift };
+			local $SIG{__WARN__} = perl_warner();
 			$ok = $i-> load($handle, load_params);
 		}
 		$i-> remove_notification( $id);
@@ -935,7 +960,7 @@ sub open_new_image
 	} else {
 		$i = Prima::Image-> new;
 		{
-			local $SIG{__WARN__} = sub { $warning = shift };
+			local $SIG{__WARN__} = perl_warner();
 			$ok = $i-> load($handle, load_params);
 		}
 	}
@@ -949,10 +974,7 @@ sub open_new_image
 		message( "Cannot load image $fn:$@");
 		return 0;
 	}
-	if ( defined $warning ) {
-		$warning =~ s/ at line.*//;
-		message($warning);
-	}
+	perl_warner_check;
 
 	# succeeded
 	my $there_was_image = $save ? 1 : 0;
@@ -1148,9 +1170,9 @@ sub preload_next_file
 	%preloaded = ( loading => ' .o' );
 	update_window_title;
 
-	my ( $ok, $warning );
+	my $ok;
 	{
-		local $SIG{__WARN__} = sub { $warning = shift };
+		local $SIG{__WARN__} = perl_warner();
 		$ok = $i-> load($name, load_params);
 	}
 	%preloaded = ();
@@ -1159,7 +1181,7 @@ sub preload_next_file
 	%preloaded = (
 		name  => $name,
 		image => $i,
-		warn  => $warning,
+		warn  => $perl_errors,
 	);
 
 	goto LEAVE if image_is_animation( $i );
@@ -1430,7 +1452,7 @@ sub filename2tag
 	my $fn = shift;
 	return undef unless defined $fn;
 	eval { $fn = abs_path( $fn); }; # it may croak if file's not found! what a fuckup
-	if ( $^O =~ /win32/i) {
+	if ( $^O =~ /win32/i && defined $fn) {
 		$fn = lc $fn ; # oh yeah
 		$fn =~ s/\\/\//g;
 	}
@@ -1692,43 +1714,41 @@ sub files_copy_move
 
 	my $YesToAll = 0;
 	my $what = (( $op eq 'copy') ? 'Copying' : 'Moving');
-	files_multirun(
-		$what,
-		sub {
-			my $src = $_[0];
-			$src =~ /([^\\\/]*)$/;
-			my $dst = "$dir/$1";
-			if ( -f $dst and not $YesToAll) {
-				my $r = message_box(
-					$what,
-					"$dst already exists. Overwrite?",
-					mb::YesNo|mb::Abort|mb::Ignore|mb::Warning, {
-					buttons => {
-						mb::Ignore => {
-							text => 'Yes to all',
-						}
-					},
-				} );
-				return 0 if $r == mb::Abort;
-				return 1 if $r == mb::No;
-				$YesToAll++ if $r == mb::Ignore;
-			}
-			my $ok;
-			my $ftag = filename2tag($src); # resolve path before touched
-			RETRY: $ok = File::Copy-> can($op)-> ( $src, $dst);
-			unless ( $ok) {
-				my $r = message_box(
-					$what,
-					"Error " . lcfirst($what) . " $src to $dir: $^E",
-					mb::Abort|mb::Retry|mb::Cancel
-				);
-				return 0 if $r == mb::Abort;
-				return 1 if $r == mb::Cancel;
-				goto RETRY;
-			} else {
-				delete $tags{ $ftag };
-			}
-			return $ok;
+	files_multirun( $what, sub {
+		my $src = $_[0];
+		$src =~ /([^\\\/]*)$/;
+		my $dst = "$dir/$1";
+		if ( -f $dst and not $YesToAll) {
+			my $r = message_box(
+				$what,
+				"$dst already exists. Overwrite?",
+				mb::YesNo|mb::Abort|mb::Ignore|mb::Warning, {
+				buttons => {
+					mb::Ignore => {
+						text => 'Yes to all',
+					}
+				},
+			} );
+			return 0 if $r == mb::Abort;
+			return 1 if $r == mb::No;
+			$YesToAll++ if $r == mb::Ignore;
+		}
+		my $ok;
+		my $ftag = filename2tag($src); # resolve path before touched
+		RETRY: $ok = File::Copy-> can($op)-> ( $src, $dst);
+		unless ( $ok) {
+			my $r = message_box(
+				$what,
+				"Error " . lcfirst($what) . " $src to $dir: $^E",
+				mb::Abort|mb::Retry|mb::Cancel
+			);
+			return 0 if $r == mb::Abort;
+			return 1 if $r == mb::Cancel;
+			goto RETRY;
+		} else {
+			delete $tags{ $ftag };
+		}
+		return $ok;
 	}, @f);
 	update_menu_tags();
 	update_window_title();
@@ -1776,7 +1796,7 @@ sub files_rename_exec
 		my $n = "$path/$_";
 
 		my $ok;
-		my $ftag = filename2tag( $f ); # resolve bath before renamed
+		my $ftag = filename2tag( $f ); # resolve path before renamed
 		RETRY: $ok = rename( $f, $n);
 		unless ( $ok) {
 			my $r = message_box(
@@ -1852,7 +1872,7 @@ sub do_delete
 
 	files_multirun( 'Deleting', sub {
 		my $ok;
-		my $ftag = filename2tag( $_[0] ); # resolve bath before renamed
+		my $ftag = filename2tag( $_[0] ); # resolve path before renamed
 		RETRY: $ok = unlink $_[0];
 		unless ( $ok) {
 			my $r = message_box(
@@ -1866,6 +1886,7 @@ sub do_delete
 		} else {
 			delete $tags{ $ftag };
 		}
+		return $ok;
 	}, @f);
 	update_menu_tags();
 	update_window_title();
@@ -1958,13 +1979,13 @@ sub file_print
 		return message_box('Error', 'Page margins are too big');
 	}
 
-	my $actual_pw	  = $pw - $margin * 2;
-	my $actual_ph	  = $ph - $margin * 2;
-	my $wzoom		  = $actual_pw / $iw;
-	my $actual_ih	  = $wzoom * $ih;
-	my $counter		  = 0;
-	my $offset		  = $actual_ih - $actual_ph;
-	my $pages		  = 0;
+	my $actual_pw = $pw - $margin * 2;
+	my $actual_ph = $ph - $margin * 2;
+	my $wzoom     = $actual_pw / $iw;
+	my $actual_ih = $wzoom * $ih;
+	my $counter   = 0;
+	my $offset    = $actual_ih - $actual_ph;
+	my $pages     = 0;
 
 	while ( 1 ) {
 		my $at_y = 0;
@@ -2268,16 +2289,12 @@ sub iv_dragend
 				return message("Please install MIME::Base64") if $@;
 				$data = MIME::Base64::decode($data);
 				return unless defined $data;
-				my $warning;
 				open( my $handle, '<', \$data) or return;
 				local $@;
-				local $SIG{__WARN__} = sub { $warning = shift };
+				local $SIG{__WARN__} = perl_warner();
 				my $i = Prima::Image-> load($handle, loadExtras => 1 );
 				return message($@) unless $i;
-				if ( defined $warning ) {
-					$warning =~ s/ at line.*//;
-					message($warning);
-				}
+				perl_warner_check;
 				image_replace( $i);
 				$answer->{allow}++;
 			}
@@ -4258,18 +4275,23 @@ try_preload_next_file();
 #};
 
 
+my $stack = '';
+local $SIG{__DIE__} = sub { $stack = Carp::longmess; };
 while ( 1) {
 	eval { run Prima; };
 	last unless $@;
 	my $err = $@;
-	last if mb::Abort == message_box(
+	my $res = message_box(
 		'Fotofix fatal error',
 		$err,
-		mb::Abort|mb::Ignore|mb::Error,
+		mb::Abort|mb::Ignore|mb::Error|mb::Retry,
 		{ buttons => {
-			mb::Abort => { text => '~Quit' }
+			mb::Abort => { text => '~Quit' },
+			mb::Retry => { text => '~Trace' }
 		}},
 	);
+	last if $res == mb::Abort;
+	message($stack) if $res == mb::Retry;
 }
 
 exit;
