@@ -226,6 +226,7 @@ sub image_reset_display_buffer
 		$use_prebuffered_zoom = 0;
 	}
 	$iv-> palette( $image-> palette);
+	$iv-> deltas(0,0);
 }
 
 sub image_replace
