@@ -1452,10 +1452,14 @@ sub filename2tag
 {
 	my $fn = shift;
 	return undef unless defined $fn;
-	eval { $fn = abs_path( $fn); }; # it may croak if file's not found! what a fuckup
-	if ( $^O =~ /win32/i && defined $fn) {
-		$fn = lc $fn ; # oh yeah
-		$fn =~ s/\\/\//g;
+	my $lfn;
+	eval { $lfn = abs_path( $fn); }; # it may croak if file's not found! what a fuckup
+	if (defined $lfn) {
+		$fn = $lfn;
+		if ( $^O =~ /win32/i) {
+			$fn = lc $fn ; # oh yeah
+			$fn =~ s/\\/\//g;
+		}
 	}
 	return $fn;
 }
@@ -3190,6 +3194,7 @@ sub image_resize
 	if ( $form{Stretch}-> checked) {
 		$image-> set( size => \@new, scaling => $scalings{$form{Scaling}->text} );
 		image_replace( $image);
+		update_window_size();
 		goto DONE;
 	}
 
