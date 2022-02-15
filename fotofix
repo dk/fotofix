@@ -1061,7 +1061,7 @@ sub open_new_image
 		$w-> {DelayTimer}-> start;
 	}
 
-	message( $i->{extras}->{truncated} ) if defined $i->{extras}->{truncated};
+	message( 'Image is partially corrupted or incomplete' ) if defined $i->{extras}->{truncated};
 
 	return 1;
 }
@@ -2725,14 +2725,9 @@ sub animation_load
 {
 	my $filename = shift;
 
-	my $player = Prima::Image::Animate-> load($filename);
-	message("Cannot load $filename as animation:$@"), return unless $player;
-
-	my $info = $player-> next;
-	return unless $info;
-
-	my $i = $player-> image;
-	return unless $i;
+	my $player = Prima::Image::Animate-> load($filename) or return;
+	my $info   = $player-> next  or return;
+	my $i      = $player-> image or return;
 
 	# commit
 	$animation-> {timer} = Prima::Timer-> new(
