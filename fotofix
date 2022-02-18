@@ -243,6 +243,10 @@ sub image_replace
 		(join('x', $i-> size) eq join('x', $image-> size));
 
 	$image = $i;
+	if (!$eq && $image && ($ini->{WindowFit} || $ini->{AutoBestFit})) {
+		# avoid extreme zooms with wildly different image sizes
+		$zoom = zoom_from_window_size( $image, $iv-> size);
+	}
 	image_reset_display_buffer();
 
 	$modified = 1;
