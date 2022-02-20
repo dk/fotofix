@@ -502,7 +502,6 @@ sub update_window_title
 	}
 
 	$w-> text( "FotoFix - $infostr");
-	$::application-> name( "FotoFix - $str");
 }
 
 sub update_menu_tags
@@ -3957,6 +3956,7 @@ $ini_file = Prima::IniFile-> create(
 );
 $ini = $ini_file-> section('Main');
 
+$::application->name("FotoFix");
 $::application->Clipboard->register_format('FileName') if $^O =~ /win32/i;
 $::application->Clipboard->register_format('text/html');
 
