@@ -4196,7 +4196,13 @@ ABOUT
 		} 0..9,
 	],
 
-	icon      => Prima::StdBitmap::icon(0),
+	icon      => Prima::Icon->load_stream(<<STREAM) // Prima::StdBitmap::icon(0),
+R0lGODdhMAAwAJEAAAAAAGhoaL+/v////ywAAAAAMAAwAIEAAABoaGi/v7////8CwZyPqcvtD6Oc
+tIGLs968ezB84kiW5tlV6rKt7tG+biyrdE3duKRHl9xzBH2aScpWJP5Cy8pQgUFEnUnI1HA1Vh/X
+rDYjCRyhIMaTvJV6YemHeI1tM8G7eO9MvQjmZTYd/QWwZ9fH16QGhyaY8HeHlzHIOKUD9qcYqWhY
+2AgHyeXhV8gnqacUYxkaivnZgooI4pnzwRqbh0e4uDJmVTpzy1jzWxd6OExbbGwhl6yIzNws+gyN
+Ql1tXa15jS3N3e3tUAAAOw==
+STREAM
 	visible   => 0,
 	onClose   => \&on_close,
 	onDestroy => sub { $::application-> destroy },
