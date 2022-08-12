@@ -87,25 +87,14 @@ for ( keys %ist:: ) {
 	$scalings{$_} = &{$ist::{$_}}();
 }
 
-{
-	$_=<<DD;
-z0z0e08d0Fa0Fc0302Cc0F08Fc0F1DFc0F3CFc0F7EF08a0F7EFc07EaF04a07CaFa01069BD041
-061BDc0E0BD04a0D07Bc0D16Bc0934Bc0a306c0Ba06z0z0c0zFzFcF0F70cF0E30cF0E10cF0E1
-0cF0Ca0cF08a0cFc0F7aFc0F7EFc0F3EFc0F3CFc0F3CF02a0F3EF06a0F3aF0Ea0F7aF0Ca0cF0
-810cF0830cF0CF0cFCaF1zFvF
-DD
-	s/\n//g;
-	s/([a-z])?(.)/$2x($1?(ord($1)-ord('_')):1)/ge;
-	$_=pack('h*',$_);
-	$icons{hand} = Prima::Icon-> create(
-		width  => 32,
-		height => 32,
-		type   => im::BW,
-		data   => substr($_,0,128),
-		mask   => substr($_,128,128),
-	);
-	create_pointer( $icons{hand});
-}
+$icons{hand} = Prima::Icon->load_stream(<<STREAM);
+R0lGODdhIAAgALMAAAAAAIAAAACAAICAAAAAgIAAgACAgICAgMDAwP8AAAD/AP//AAAA//8A/wD/
+/////ywAAAAAIAAgAIMAAACAAAAAgACAgAAAAICAAIAAgICAgIDAwMD/AAAA/wD//wAAAP//AP8A
+//////8EfbDJSau9OOvNu/9gKI4gABwmOZnogwAuoMLPidT3KYvA/R6x4C5Ee+UeuNqI1ks2X56T
+5Al7BWsHDkzaqiGZ3+ymaQN7z1JtmIZsu9PjW43tbv+i9XwbrpXr7Xxqf3tiJYMxhYZ/gR8mdI6M
+eHqRjZCOiSqZmpucnZ6foBYRADs=
+STREAM
+create_pointer($icons{hand}) if $icons{hand};
 
 sub perl_warner
 {
