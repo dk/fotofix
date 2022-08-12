@@ -26,7 +26,7 @@ use Time::HiRes;
 eval "use Prima::IPA;";
 my $UseIPA = not $@;
 
-my $VERSION = 1.80;
+my $VERSION = 1.81;
 
 # If on, can be (not necessarily) , faster but surely will cost extra memory.
 # Since X11 doesn't support scaled image output, this doesn't matter, and should be
