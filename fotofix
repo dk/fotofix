@@ -3618,6 +3618,14 @@ If that's too short, keep Control key pressed, so you'll have $delay seconds mor
 MSG
 	$ini->{ConfirmationGrab} = 0 if defined($res) && $res == mb::Abort;
 
+	$res = message_box( 'Grab screen', join(' ', (split "\n", <<MSG)), mb::Ok|mb::Abort, \%opt) if $ini->{ConfirmationMacOS} && $^O eq 'darwin';
+Make sure fotofix is allowed access to screen.  To do that, Choose Apple menu,
+System Preferences, click Security & Privacy, then click Privacy.  Click on an
+icon on the left lower corner to allow changes.  Then, in the screen recording
+tab, add XQuartz and terminal to the list of allowed applications.
+MSG
+	$ini->{ConfirmationMacOS} = 0 if defined($res) && $res == mb::Abort;
+
 	$w-> visible(0);
 
 	for ( 1..10) {
@@ -3931,6 +3939,7 @@ $ini_file = Prima::IniFile-> create(
 				Sorting      => 'alpha',
 				SortForward  => 1,
 				ConfirmationGrab => 1,
+				ConfirmationMacOS => 1,
 				( map {( "Ext$_" => '' )} (1..9)),
 			],
 			ResizeDialog => [
