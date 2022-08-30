@@ -3192,7 +3192,7 @@ sub image_resize
 	);
 
 	# simple extraction of a smaller part
-	if ( $place[0] <= 0 && $place[1] <= 0) {
+	if ( $place[0] <= 0 && $place[1] <= 0 && $new[0] <= $is[0] && $new[1] <= $is[1]) {
 		image_replace( $image-> extract( -$place[0], -$place[1], @new));
 		goto DONE;
 	}
@@ -3204,6 +3204,7 @@ sub image_resize
 		palette => $image-> palette,
 		type    => $image-> type,
 		color   => $form{Color}-> value,
+		rop2    => rop::CopyPut,
 	);
 	# we're guaranteed that a new image is black; change all black pixels to given color
 	$i-> map(0);
