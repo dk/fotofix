@@ -1824,7 +1824,7 @@ sub do_rename
 		'Perl regular expression:',
 		'',
 		mb::OkCancel|mb::Help, {
-		helpTopic => "$0/Rename",
+		helpTopic => "file://$0|Rename",
 	});
 	return unless defined $cmd and length $cmd;
 
@@ -1902,7 +1902,7 @@ sub do_execute
 		'Command:',
 		'',
 		mb::OkCancel|mb::Help, {
-		helpTopic => "$0/Execute",
+		helpTopic => "file://$0|Execute",
 	});
 	return unless defined $cmd and length $cmd;
 
@@ -2034,7 +2034,7 @@ sub external_command_edit
 		'Enter command number',
 		'Enter number from 1 to 9',
 		'',
-		mb::OkCancel|mb::Help, { helpTopic => "$0/External commands" },
+		mb::OkCancel|mb::Help, { helpTopic => "file://$0|External commands" },
 	);
 	return unless defined $num;
 	redo unless $num =~ /^\d$/;
@@ -2043,7 +2043,7 @@ sub external_command_edit
 		'Enter command',
 		'Command line with $_ as file wildcard',
 		$ini-> {"Ext$num"},
-		mb::OkCancel|mb::Help, { helpTopic => "$0/External commands" },
+		mb::OkCancel|mb::Help, { helpTopic => "file://$0|External commands" },
 	);
 	return unless defined $cmd;
 	$ini-> {"Ext$num"} = $cmd;
@@ -4177,7 +4177,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 		'ExifOrientation',  'Auto-rotate image by E~XIF' => \&menuitem_set ],
 	]],
 	['~Help' => [
-		[information => "~Information" => "F1" => "F1" => sub { $::application-> open_help($0)}],
+		[information => "~Information" => "F1" => "F1" => sub { $::application-> open_help("file://$0")}],
          	[],
 		[about => "~About" => sub { message <<ABOUT, mb::OK }],
 FotoFix v$VERSION by Dmitry Karasik
