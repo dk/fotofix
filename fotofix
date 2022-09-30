@@ -2546,7 +2546,7 @@ sub image_rotate_custom
 			onSize    => sub {
 				my $o = shift->owner;
 				return unless defined $mx1;
-				my $d = ($o->width - $ox) / 2;
+				my $d = ($o->width - $ox) / 3;
 
 				$o->$_->width($mw1 + $d) for qw(mA mB mC mD mX mY);
 				my $dl = $o->lB->left;
@@ -2555,8 +2555,8 @@ sub image_rotate_custom
 				$o->$_->left( $mx2 + $d) for qw(mB mD);
 				$dl -= $o->lB->left;
 				$dm -= $o->mB->left;
-				$o->$_->left( $o->$_->left + $dl) for qw(lX lY);
-				$o->$_->left( $o->$_->left + $dm) for qw(mX mY);
+				$o->$_->left( $o->$_->left - $dl * 2) for qw(lX lY);
+				$o->$_->left( $o->$_->left - $dm * 2) for qw(mX mY);
 			},
 		],
 		[ CircularSlider =>
