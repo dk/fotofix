@@ -2522,9 +2522,9 @@ sub image_rotate_custom
 
 		my (@m, $angle);
 		if ( $by_rotation ) {
-			$angle = $self->Angle->value; 
+			$angle = $self->Angle->value;
 		} else {
-			for (qw(mA mB mC mD)) {
+			for (qw(mA mB mC mD mX mY)) {
 				my $v = $self->$_->text;
 				return unless $v =~ /^[-+]?\d+(.\d+)?(e[-+]\d+)?$/;
 				$v = $v + 0;
@@ -2565,11 +2565,12 @@ sub image_rotate_custom
 	my $dx1 = $fw * 15;
 	my $dx2 = $fw * 23;
 	my $dx3 = $fw * 33;
+	my $dx4 = $fw * 43;
 	my ($mx1, $mw1, $mx2, $mx3, $ox);
 	image_preview_dialog( $orig, $title,
 		[ Widget => 
 			pack      => { expand => 1, fill => 'both' },
-			size      => [400 * $ow, 400 * $ow],
+			size      => [430 * $ow, 400 * $ow],
 			onSetup   => sub {
 				my $o = shift->owner;
 				($ox, $mx1, $mw1, $mx2, $mx3) = ($o->width, $o->mA->left, $o->mA->width, $o->mB->left, $o->lB->left);
@@ -2579,9 +2580,15 @@ sub image_rotate_custom
 				return unless defined $mx1;
 				my $d = ($o->width - $ox) / 2;
 
-				$o->$_->width($mw1 + $d) for qw(mA mC);
+				$o->$_->width($mw1 + $d) for qw(mA mB mC mD mX mY);
+				my $dl = $o->lB->left;
+				my $dm = $o->mB->left;
 				$o->$_->left( $mx3 + $d) for qw(lB lD);
-				$o->$_->set( width => $mw1 + $d, left => $mx2 + $d) for qw(mB mD);
+				$o->$_->left( $mx2 + $d) for qw(mB mD);
+				$dl -= $o->lB->left;
+				$dm -= $o->mB->left;
+				$o->$_->left( $o->$_->left + $dl) for qw(lX lY);
+				$o->$_->left( $o->$_->left + $dm) for qw(mX mY);
 			},
 		],
 		[ CircularSlider =>
@@ -2677,6 +2684,22 @@ sub image_rotate_custom
 			max       => 20,
 		],
 		[ Label    =>
+			origin    => [70 + $dx4, $oy + $fh * 2 - 2],
+			text      => '~X:',
+			focusLink => 'mX',
+			name      => 'lX',
+		],
+		[ SpinEdit =>
+			origin    => [70 + $dx4 + 3 * $fw, $oy + $fh * 2],
+			name      => 'mX',
+			onChange  => sub { $replace->(shift->owner,0) },
+			value     => 0,
+			width     => 8 * $fw,
+			step      => 0.1,
+			min       => 0,
+			max       => 1,
+		],
+		[ Label    =>
 			origin    => [30 + $dx2, $oy - 2],
 			text      => '~C:',
 			focusLink => 'mC',
@@ -2707,6 +2730,22 @@ sub image_rotate_custom
 			step      => 0.1,
 			min       => -20,
 			max       => 20,
+		],
+		[ Label    =>
+			origin    => [70 + $dx4, $oy - 2],
+			text      => '~Y:',
+			focusLink => 'mY',
+			name      => 'lY',
+		],
+		[ SpinEdit =>
+			origin    => [70 + $dx4 + 3 * $fw, $oy],
+			name      => 'mY',
+			value     => 0,
+			onChange  => sub { $replace->(shift->owner,0) },
+			width     => 8 * $fw,
+			step      => 0.1,
+			min       => 0,
+			max       => 1,
 		],
 	);
 }
