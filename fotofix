@@ -2501,12 +2501,6 @@ sub image_rotate
 sub image_rotate_custom
 {
 	my $orig = $image-> dup;
-	my $mask = Prima::Image->create(
-		type  => im::Byte,
-		size  => [$image->size],
-		color => cl::White,
-	);
-	$mask->bar(0,0,$mask->size);
 
 	my $title   = 'Rotate image';
 	my $scaling = ist::Box;
@@ -2514,48 +2508,22 @@ sub image_rotate_custom
 	my $lock_change = 0;
 
 	my $replace = sub {
-		my ($self, $by_what) = @_;
-		my $img = $orig->dup;
+		my ($self) = @_;
 		return if $lock_change;
 
-		$by_rotation = $by_what if defined $by_what;
+		my $img = $orig->dup;
 
-		my (@m, $angle);
-		if ( $by_rotation ) {
-			$angle = $self->Angle->value;
-		} else {
-			for (qw(mA mB mC mD mX mY)) {
-				my $v = $self->$_->text;
-				return unless $v =~ /^[-+]?\d+(.\d+)?(e[-+]\d+)?$/;
-				$v = $v + 0;
-				push @m, $v;
-			}
+		my @m;
+		for (qw(mA mB mC mD mX mY)) {
+			my $v = $self->$_->text;
+			return unless $v =~ /^[-+]?\d+(.\d+)?(e[-+]\d+)?$/;
+			$v = $v + 0;
+			push @m, $v;
 		}
 
 		$img->scaling($scaling);
-		if ( $by_rotation) {
-			$img->rotate($angle);
-		} else {
-			$img->transform(@m);
-		}
-
-		my $msk = $mask->dup;
-		$msk->scaling($scaling);
-		if ( $by_rotation) {
-			$msk->rotate($angle);
-		} else {
-			$msk->transform(@m);
-		}
-
-		my $target = Prima::Image->new(
-			type  => im::RGB,
-			size  => [$img->size],
-			color => $self->Color->value,
-		);
-		$target->bar(0,0,$target->size);
-		$target->put_image(0,0,Prima::Icon->create_combined($img,$msk));
-
-		image_replace( $target);
+		$img->transform(matrix => \@m, fill => $self->Color->value);
+		image_replace( $img);
 	};
 
 	my $fh = $w->font->height;
@@ -2614,7 +2582,7 @@ sub image_rotate_custom
 				$o->mC->value(-$sin);
 				$o->mD->value($cos);
 				$lock_change = 0;
-				$replace->($o, 1);
+				$replace->($o);
 			}
 		],
 		[ Label    =>
@@ -2648,6 +2616,7 @@ sub image_rotate_custom
 		[ ColorComboBox =>
 			origin    => [20 + $dx1, $oy],
 			name      => 'Color',
+			grayscale => $image->type & im::GrayScale,
 			size      => [ $fw * 8, $fh + 4 ],
 			onChange  => sub { $replace->(shift->owner) },
 		],
@@ -2660,7 +2629,7 @@ sub image_rotate_custom
 		[ SpinEdit =>
 			origin    => [30 + $dx2 + 3 * $fw, $oy + $fh * 2],
 			name      => 'mA',
-			onChange  => sub { $replace->(shift->owner,0) },
+			onChange  => sub { $replace->(shift->owner) },
 			value     => 1,
 			width     => 8 * $fw,
 			step      => 0.1,
@@ -2676,7 +2645,7 @@ sub image_rotate_custom
 		[ SpinEdit =>
 			origin    => [50 + $dx3 + 3 * $fw, $oy + $fh * 2],
 			name      => 'mB',
-			onChange  => sub { $replace->(shift->owner,0) },
+			onChange  => sub { $replace->(shift->owner) },
 			value     => 0,
 			width     => 8 * $fw,
 			step      => 0.1,
@@ -2692,7 +2661,7 @@ sub image_rotate_custom
 		[ SpinEdit =>
 			origin    => [70 + $dx4 + 3 * $fw, $oy + $fh * 2],
 			name      => 'mX',
-			onChange  => sub { $replace->(shift->owner,0) },
+			onChange  => sub { $replace->(shift->owner) },
 			value     => 0,
 			width     => 8 * $fw,
 			step      => 0.1,
@@ -2709,7 +2678,7 @@ sub image_rotate_custom
 			origin    => [30 + $dx2 + 3 * $fw, $oy],
 			name      => 'mC',
 			value     => 0,
-			onChange  => sub { $replace->(shift->owner,0) },
+			onChange  => sub { $replace->(shift->owner) },
 			width     => 8 * $fw,
 			step      => 0.1,
 			min       => -20,
@@ -2725,7 +2694,7 @@ sub image_rotate_custom
 			origin    => [50 + $dx3 + 3 * $fw, $oy],
 			name      => 'mD',
 			value     => 1,
-			onChange  => sub { $replace->(shift->owner,0) },
+			onChange  => sub { $replace->(shift->owner) },
 			width     => 8 * $fw,
 			step      => 0.1,
 			min       => -20,
@@ -2741,7 +2710,7 @@ sub image_rotate_custom
 			origin    => [70 + $dx4 + 3 * $fw, $oy],
 			name      => 'mY',
 			value     => 0,
-			onChange  => sub { $replace->(shift->owner,0) },
+			onChange  => sub { $replace->(shift->owner) },
 			width     => 8 * $fw,
 			step      => 0.1,
 			min       => 0,
