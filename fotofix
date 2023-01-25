@@ -333,8 +333,8 @@ sub region_set
 	}
 	$r[0] = 0 if $r[0] < 0;
 	$r[1] = 0 if $r[1] < 0;
-	$r[2] = $s[0] - 1 if $r[2] >= $s[0];
-	$r[3] = $s[1] - 1 if $r[3] >= $s[1];
+	$r[2] = $s[0] if $r[2] > $s[0];
+	$r[3] = $s[1] if $r[3] > $s[1];
 
 	@r = (0,0,0,0) if
 		$r[0] >= $s[0] or
@@ -2108,7 +2108,7 @@ sub iv_mousedown
 		$self-> capture(1);
 	} elsif ( $btn == mb::Left) {
 		@{$self}{qw(x y marquee_x marquee_y)}
-			= map { int } convert_screen_to_point( $x, $y, $x, $y);
+			= map { int( $_ + .5 ) } convert_screen_to_point( $x, $y, $x, $y);
 		$self-> capture(1, $self);
 	} elsif ( $btn == mb::Middle) {
 		return magnify(
@@ -2138,7 +2138,7 @@ sub iv_mouseup
 	} elsif ( $btn == mb::Left) {
 		delete @{$self}{qw(marquee_x marquee_y)};
 		draw_marquee();
-		region_set( @{$self}{qw(x y)}, convert_screen_to_point( $x, $y));
+		region_set( @{$self}{qw(x y)}, map { int($_ + .5) } convert_screen_to_point( $x, $y));
 		update_menu_status();
 	}
 }
@@ -2187,7 +2187,7 @@ sub iv_mousemove
 		my ($dx,$dy) = ($x - $self-> {x}, $y - $self-> {y});
 		$self-> deltas( $self-> {wasdx} - $dx, $self-> {wasdy} + $dy);
 	} elsif ( $self-> {drag} == mb::Left) {
-		@{$self}{qw(marquee_x marquee_y)} = map { int } convert_screen_to_point($x, $y);
+		@{$self}{qw(marquee_x marquee_y)} = map { int( $_ + .5 ) } convert_screen_to_point($x, $y);
 		draw_marquee();
 		update_window_title();
 	}
