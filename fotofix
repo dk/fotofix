@@ -2227,10 +2227,10 @@ sub iv_keydown
 		my ( $code, $key, $mod, $rep) = @_;
 		if ( $key == kb::Enter) {
 			fullscreen(0);
-			$self-> clear_event;
 		} else {
 			$w-> key_down(@_);
 		}
+		$self-> clear_event;
 	}
 }
 
