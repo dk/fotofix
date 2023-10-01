@@ -1589,36 +1589,9 @@ sub latest_dirs_update
 
 sub create_chdir_dialog
 {
-	Prima::Dialog::ChDirDialog-> new(
+	my $dir = Prima::Dialog::ChDirDialog-> new(
 		menuItems => [
-			[ '~File' => [
-				[ '~New folder...' => 'F7', 'F7', sub {
-					my $self = shift;
-					my $dir = input_box(
-						'New folder',
-						'Create new folder:',
-						'New folder',
-						mb::OkCancel
-					);
-					return unless defined $dir;
-					$dir = $self-> directory . '/' . $dir;
-					if ( mkdir $dir ) {
-						$self->Dir->new_directory;
-					} else {
-						message("Cannot create folder:$!");
-					}
-				} ],
-				[ '~Change to...' => 'Ctrl+L', '^L', sub {
-					my $self = shift;
-					my $dir = input_box(
-						'Change folder',
-						'Enter new folder path',
-						'',
-						mb::OkCancel
-					);
-					$self->directory($dir) if defined $dir;
-				} ],
-			]],
+			@{Prima::Dialog::FileDialog->menu},
 			[ 'recent' => '~Recent' => [
 				[]
 			]],
@@ -2209,7 +2182,7 @@ sub iv_mousewheel
 		$magnify-> repaint;
 	} elsif ( $mod & km::Ctrl ) {
 		zoom_set( $zoom * (( $z > 0 ) ? 1.1 : 0.9 ));
-    } else {
+	} else {
 		$z = 5 * int( $z / 120);
 		my $xv = ($mod & km::Shift) ? 'vScroll' : 'hScroll';
 		return unless $self-> $xv();
