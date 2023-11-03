@@ -1,11 +1,5 @@
 #!/usr/bin/env perl
 
-=head1 NAME
-
-examples/gif2webp.pl - convert image animations
-
-=cut
-
 use strict;
 use warnings;
 use Getopt::Long;
@@ -15,8 +9,13 @@ use Time::HiRes qw(time);
 use Prima qw(Image::Animate Image::Loader);
 
 my %opt = (
-	help => 0,
-	output => undef,
+	help        => 0,
+	'help-options' => 0,
+	output      => undef,
+	compression => 'lossless',
+	quality     => 75,
+	filter      => 0,
+	method      => 3,
 );
 
 sub usage
@@ -30,6 +29,12 @@ format: gif2webp [options] file.gif
 options:
 	--o|-output OUTPUT (default is file.webp)
 	--help|-h
+	--help-options
+
+	-c|--compression lossless|lossy|mixed (default:$opt{compression})
+	-q|--quality     0-100                (default:$opt{quality})
+	-f|--filter      0-100                (default:$opt{filter})
+	-m|--method      0-6                  (default:$opt{method})
 
 USAGE
 	exit 1;
@@ -37,10 +42,20 @@ USAGE
 
 GetOptions(\%opt,
 	"help|h",
+	"help-options",
 	"output|o=s",
+	"compression|c=s",
+	"quality|q=i",
+	"filter|f=i",
+	"method|m=i",
 ) or usage;
 
 usage if $opt{help};
+return system(perldoc => $0) if $opt{'help-options'};
+usage if $opt{compression} !~ /^(lossless|lossy|mixed)$/;
+usage if $opt{quality} < 0 || $opt{quality} > 100;
+usage if $opt{filter} < 0 || $opt{filter} > 100;
+usage if $opt{method} < 0 || $opt{method} > 6;
 usage unless @ARGV;
 
 my $codecID;
@@ -61,10 +76,14 @@ my ($l,$s,$e,$i,$ok);
 ($l,$e) = Prima::Image::Animate->load( $input );
 die "Cannot load $input: $e\n" unless $l;
 
-($s,$e) = Prima::Image::Saver->new( $opt{output}, codecID => $codecID, frames => $l->total );
+($s,$e) = Prima::Image::Saver->new( $opt{output}, 
+	codecID => $codecID,
+	frames  => $l->total,
+	(map { ( $_, $opt{$_} ) } qw(compression quality filter method)),
+);
 die "Cannot save $opt{output}: $e\n" unless $s;
 
-END { unlink $opt{output} unless $success };
+END { unlink $opt{output} if defined $opt{output} && !$success };
 
 my $t = time;
 $|++;
@@ -84,4 +103,46 @@ while ( 1 ) {
 die "no frames saved\n" unless $i;
 $success = 1;
 print "\r", $opt{output}, ': ', $i->width, 'x', $i->height, ', ', $l->total, " frames saved\n";
+
+=head1 NAME
+
+gif2webp - convert gif animations to webp
+
+=head1 OPTIONS
+
+=over
+
+=item compression lossless|lossy|mixed
+
+Mixed compression mode: optimize compression of the image
+by picking either lossy or lossless compression for each frame heuristically
+
+=item quality INTEGER 0-100
+
+The compression factor for RGB channels between 0 and 100.  In case of lossless
+compression, a small factor enables faster compression speed, but produces a
+larger file. Maximum compression is achieved by using a value of 100. In case
+of lossy compression , a small factor produces a smaller file with lower
+quality. Best quality is achieved by using a value of 100.
+
+=item filter INTEGER 0-100
+
+For lossy encoding only.  Specify the strength of the deblocking filter,
+between 0 (no filtering) and 100 (maximum filtering).  A value of 0 will turn
+off any filtering.  Higher value will increase the strength of the filtering
+process applied after decoding the picture.  The higher the value the smoother
+the picture will appear.  Typical values are usually in the range of 20 to 50.
+
+=item method 0-6
+
+The compression method to use (0-6). This parameter controls the trade off
+between encoding speed and the compressed file size and quality.  When higher
+values are used, the encoder will spend more time inspecting additional
+encoding possibilities and decide on the quality gain.  Lower value can result
+in faster processing time at the expense of larger file size and lower
+compression quality.
+
+=back
+
+=cut
 
