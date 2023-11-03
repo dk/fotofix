@@ -1,0 +1,87 @@
+#!/usr/bin/env perl
+
+=head1 NAME
+
+examples/gif2webp.pl - convert image animations
+
+=cut
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Prima::noX11;
+use Prima::noARGV;
+use Time::HiRes qw(time);
+use Prima qw(Image::Animate Image::Loader);
+
+my %opt = (
+	help => 0,
+	output => undef,
+);
+
+sub usage
+{
+	print <<USAGE;
+
+$0 - convert gif to webp
+
+format: gif2webp [options] file.gif
+
+options:
+	--o|-output OUTPUT (default is file.webp)
+	--help|-h
+
+USAGE
+	exit 1;
+}
+
+GetOptions(\%opt,
+	"help|h",
+	"output|o=s",
+) or usage;
+
+usage if $opt{help};
+usage unless @ARGV;
+
+my $codecID;
+die "Prima is not compiled with GIF support\n" unless Prima::Image->has_codec('GIF');
+die "Prima is not compiled with WEBP support\n" unless defined ( $codecID = (( Prima::Image->has_codec('WEBP') // {} )->{codecID}));
+
+my $input = $ARGV[0];
+unless ( defined $opt{output}) {
+	if ( $input =~ m/^(.*)\.gif/i) {
+		$opt{output} = "$1.webp";
+	} else {
+		$opt{output} .= ".webp";
+	}
+}
+
+my $success = 0;
+my ($l,$s,$e,$i,$ok);
+($l,$e) = Prima::Image::Animate->load( $input );
+die "Cannot load $input: $e\n" unless $l;
+
+($s,$e) = Prima::Image::Saver->new( $opt{output}, codecID => $codecID, frames => $l->total );
+die "Cannot save $opt{output}: $e\n" unless $s;
+
+END { unlink $opt{output} unless $success };
+
+my $t = time;
+$|++;
+while ( 1 ) {
+	last unless my $info = $l-> next;
+	$i = $l->image;
+	$i->{extras}->{delay} = $info->{delay} * 1000 if $info->{delay} > 0;
+	($ok,$e) = $s->save($i);
+	die "Cannot save $opt{output}: $e\n" unless $ok;
+	last if $l->current == $l->total - 1;
+	my $t2 = time;
+	if ( $t2 - $t > 0 ) {
+		print "\r", ($l->current + 1), "/", $l->total;
+		$t = $t2;
+	}
+}
+die "no frames saved\n" unless $i;
+$success = 1;
+print "\r", $opt{output}, ': ', $i->width, 'x', $i->height, ', ', $l->total, " frames saved\n";
+
