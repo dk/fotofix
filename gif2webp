@@ -16,6 +16,7 @@ my %opt = (
 	quality     => 75,
 	filter      => 0,
 	method      => 3,
+	recover     => 0,
 );
 
 sub usage
@@ -36,6 +37,8 @@ options:
 	-f|--filter      0-100                (default:$opt{filter})
 	-m|--method      0-6                  (default:$opt{method})
 
+	-r|--recover     try to recover a broken file by scanning for individual frames
+
 USAGE
 	exit 1;
 }
@@ -48,6 +51,7 @@ GetOptions(\%opt,
 	"quality|q=i",
 	"filter|f=i",
 	"method|m=i",
+	"recover",
 ) or usage;
 
 usage if $opt{help};
@@ -75,6 +79,7 @@ my $success = 0;
 my ($l,$s,$e,$i,$ok);
 ($l,$e) = Prima::Image::Animate->load( $input );
 die "Cannot load $input: $e\n" unless $l;
+$l->loader->rescue_mode(1) if $opt{recover};
 
 ($s,$e) = Prima::Image::Saver->new( $opt{output}, 
 	codecID => $codecID,
@@ -87,12 +92,19 @@ END { unlink $opt{output} if defined $opt{output} && !$success };
 
 my $t = time;
 $|++;
+my $saved = 0;
 while ( 1 ) {
 	last unless my $info = $l-> next;
+	if ( defined (my $warning = $l->warning)) {
+		print "\n** Warning: $warning\n";
+		print "The output file may not be correct, consider the --scan option\n";
+		last;
+	}
 	$i = $l->image;
 	$i->{extras}->{delay} = $info->{delay} * 1000 if $info->{delay} > 0;
 	($ok,$e) = $s->save($i);
 	die "Cannot save $opt{output}: $e\n" unless $ok;
+	$saved++;
 	last if $l->current == $l->total - 1;
 	my $t2 = time;
 	if ( $t2 - $t > 0 ) {
@@ -100,9 +112,9 @@ while ( 1 ) {
 		$t = $t2;
 	}
 }
-die "no frames saved\n" unless $i;
+die "no frames saved\n" unless $saved;
 $success = 1;
-print "\r", $opt{output}, ': ', $i->width, 'x', $i->height, ', ', $l->total, " frames saved\n";
+print "\r", $opt{output}, ': ', $i->width, 'x', $i->height, ', ', "$saved frames saved\n";
 
 =head1 NAME
 
