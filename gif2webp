@@ -11,12 +11,14 @@ use Prima qw(Image::Animate Image::Loader);
 my %opt = (
 	help        => 0,
 	'help-options' => 0,
+	'help-codecs'  => 0,
 	output      => undef,
 	compression => 'lossless',
 	quality     => 75,
 	filter      => 0,
 	method      => 3,
 	recover     => 0,
+	policy      => 'keep',
 );
 
 sub usage
@@ -25,12 +27,13 @@ sub usage
 
 $0 - convert gif to webp
 
-format: gif2webp [options] file.gif
+format: gif2webp [options] file.gif [file.gif]
 
 options:
 	--o|-output OUTPUT (default is file.webp)
 	--help|-h
 	--help-options
+	--help-codecs
 
 	-c|--compression lossless|lossy|mixed (default:$opt{compression})
 	-q|--quality     0-100                (default:$opt{quality})
@@ -38,6 +41,10 @@ options:
 	-m|--method      0-6                  (default:$opt{method})
 
 	-r|--recover     try to recover a broken file by scanning for individual frames
+	-p|--policy      keep|delete|compare  (default:$opt{policy})
+	                 keep     - do not delete old gif file
+			 delete   - delete old gif file
+			 compare  - delete the largest file, either gif or webp
 
 USAGE
 	exit 1;
@@ -46,79 +53,141 @@ USAGE
 GetOptions(\%opt,
 	"help|h",
 	"help-options",
+	"help-codecs",
 	"output|o=s",
 	"compression|c=s",
 	"quality|q=i",
 	"filter|f=i",
 	"method|m=i",
-	"recover",
+	"recover|r",
+	"policy|p=s",
 ) or usage;
 
 usage if $opt{help};
 return system(perldoc => $0) if $opt{'help-options'};
+if ($opt{'help-codecs'}) {
+	my (@c, @a, $webp);
+	for ( @{ Prima::Image->codecs }) {
+		if ( $_->{canLoadMultiple}) {
+			push @a, $_->{fileShortType};
+		} elsif ( $_->{canLoad}) {
+			push @c, $_->{fileShortType};
+		}
+
+		$webp = 1 if $_->{canSaveMultiple} && $_->{fileShortType} eq 'WEBP';
+	}
+	@c = ('none') unless @c;
+	@a = ('none') unless @a;
+	print "input animation formats supported: @a\n";
+	print "input image formats supported: @c\n";
+	printf "output WebP animation supported: %s\n", $webp ? 'yes' : 'no';
+	exit;
+}
 usage if $opt{compression} !~ /^(lossless|lossy|mixed)$/;
 usage if $opt{quality} < 0 || $opt{quality} > 100;
 usage if $opt{filter} < 0 || $opt{filter} > 100;
 usage if $opt{method} < 0 || $opt{method} > 6;
+usage if $opt{policy} !~ /^(keep|delete|compare)$/;
 usage unless @ARGV;
 
 my $codecID;
-die "Prima is not compiled with GIF support\n" unless Prima::Image->has_codec('GIF');
 die "Prima is not compiled with WEBP support\n" unless defined ( $codecID = (( Prima::Image->has_codec('WEBP') // {} )->{codecID}));
 
-my $input = $ARGV[0];
-unless ( defined $opt{output}) {
-	if ( $input =~ m/^(.*)\.gif/i) {
-		$opt{output} = "$1.webp";
-	} else {
-		$opt{output} .= ".webp";
-	}
-}
+@ARGV = <$ARGV[0]> if $^O =~ /win32/i && 1 == @ARGV;
+die "-o can be only defined for single input file\n" if 1 < @ARGV && defined $opt{output};
 
-my $success = 0;
-my ($l,$s,$e,$i,$ok);
-($l,$e) = Prima::Image::Animate->load( $input );
-die "Cannot load $input: $e\n" unless $l;
-$l->loader->rescue_mode(1) if $opt{recover};
-
-($s,$e) = Prima::Image::Saver->new( $opt{output}, 
-	codecID => $codecID,
-	frames  => $l->total,
-	(map { ( $_, $opt{$_} ) } qw(compression quality filter method)),
-);
-die "Cannot save $opt{output}: $e\n" unless $s;
-
-END { unlink $opt{output} if defined $opt{output} && !$success };
-
-my $t = time;
 $|++;
-my $saved = 0;
-while ( 1 ) {
-	last unless my $info = $l-> next;
-	if ( defined (my $warning = $l->warning)) {
-		print "\n** Warning: $warning\n";
-		print "The output file may not be correct, consider the --scan option\n";
-		last;
+
+my $total_saved = 0;
+
+for my $input (@ARGV) {
+	my $output = $opt{output};
+	unless ( defined $output ) {
+		if ( $input =~ m/^(.*)\.gif/i) {
+			$output = "$1.webp";
+		} else {
+			$output .= ".webp";
+		}
 	}
-	$i = $l->image;
-	$i->{extras}->{delay} = $info->{delay} * 1000 if $info->{delay} > 0;
-	($ok,$e) = $s->save($i);
-	die "Cannot save $opt{output}: $e\n" unless $ok;
-	$saved++;
-	last if $l->current == $l->total - 1;
-	my $t2 = time;
-	if ( $t2 - $t > 0 ) {
-		print "\r", ($l->current + 1), "/", $l->total;
-		$t = $t2;
+
+	my ($l,$s,$e,$i,$ok);
+	($l,$e) = Prima::Image::Animate->load( $input );
+	die "Cannot load $input: $e\n" unless $l;
+	$l->loader->rescue_mode(1) if $opt{recover};
+
+	($s,$e) = Prima::Image::Saver->new( $output, 
+		codecID => $codecID,
+		frames  => $l->total,
+		(map { ( $_, $opt{$_} ) } qw(compression quality filter method)),
+	);
+
+	my $saved = 0;
+	eval {
+		die "Cannot save $output: $e\n" unless $s;
+
+		my $t = time;
+		while ( 1 ) {
+			last unless my $info = $l-> next;
+			if ( defined (my $warning = $l->warning)) {
+				print "\n** Warning: $warning\n";
+				print "The output file is invalid and is removed, consider the --scan option\n";
+				unlink $output;
+				last;
+			}
+			$i = $l->image;
+			$i->{extras}->{delay} = $info->{delay} * 1000 if $info->{delay} > 0;
+			($ok,$e) = $s->save($i);
+			die "Cannot save $output: $e\n" unless $ok;
+			$saved++;
+			last if $l->current == $l->total - 1;
+			my $t2 = time;
+			if ( $t2 - $t > 0 ) {
+				print "\r$input: ", ($l->current + 1), "/", $l->total;
+				$t = $t2;
+			}
+		}
+		die "no frames saved\n" unless $saved;
+	};
+	if ($@) {
+		unlink $output;
+		die $@;
 	}
+	undef $l;
+	undef $s;
+
+	print "\r", $output, ': ', $i->width, 'x', $i->height, ', ', "$saved frames saved";
+	if ( $opt{policy} eq 'delete') {
+		unlink $input;
+		print ", $input deleted";
+	} elsif ( $opt{policy} eq 'compare') {
+		my $isz = -s $input;
+		my $osz = -s $output;
+		if ( $isz > 0 && $osz > 0 ) {
+			if ( $isz > $osz ) {
+				unlink $input;
+				printf ", gif deleted, %d bytes saved", $isz - $osz;
+				$total_saved += $isz - $osz;
+			} else {
+				unlink $output;
+				print ", webp deleted";
+			}
+		} else {
+			print "\n** Warning: something wrong, input and/or output file size is 0 bytes";
+		}
+	}
+	print "\n";
 }
-die "no frames saved\n" unless $saved;
-$success = 1;
-print "\r", $opt{output}, ': ', $i->width, 'x', $i->height, ', ', "$saved frames saved\n";
+
+print "Total $total_saved bytes saved\n" if @ARGV > 1 && $total_saved > 0;
 
 =head1 NAME
 
-gif2webp - convert gif animations to webp
+gif2webp - convert animations to webp
+
+=head1 FILE FORMATS SUPPORTED
+
+Input formats can be GIF, WebP, APNG, and HEIF.
+The prerequisite is that the Prima toolkit is compiled with these.
 
 =head1 OPTIONS
 
