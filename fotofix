@@ -4,13 +4,8 @@
 # rotate images, and remove red eyes (with some luck, and if Prima::IPA is installed)
 #
 # dependencies:
-# Prima: http://prima.eu.org/anon_cvs.html ( but will also work with
-#  http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima-1.22.tar.gz )
-#
-# optional dependencies:
-# Prima::IPA: http://search.cpan.org/CPAN/authors/id/K/KA/KARASIK/Prima::IPA-1.03.tar.gz
-#    (or http://prima.eu.org/Prima::IPA/Prima::IPA-1.03.tar.gz if CPAN refuses)
-#
+# Prima, Prima::IPA (optional)
+# install these by `cpan Prima::IPA`
 
 use strict;
 use warnings;
