@@ -1366,6 +1366,9 @@ sub image_info
 		my $v = $e{$k};
 		unless ( defined $v) {
 			$v = 'undefined';
+		} elsif ( $k eq 'appdata') {
+			# don't bother with jpeg appdata
+			next;
 		} elsif ( ref($v) eq 'ARRAY') {
 			$v = '[' . join(',', grep { defined } @$v) . ']';
 		} elsif ( $k eq 'codecID') {
@@ -1380,6 +1383,16 @@ sub image_info
 			next;
 		}
 		push @items, [ $k, $v];
+	}
+
+	if ( my $exif = $i->exif ) {
+		for my $k ( sort keys %$exif ) {
+			my $v = $exif->{$k};
+			next unless (ref($v) // '') eq 'ARRAY';
+			for my $e ( @$v ) {
+				push @items, [ "$k.$e->[0]", join(' ', @{$e}[2..$#$e]) ];
+			}
+		}
 	}
 
 	my $d = Prima::Window-> create(
