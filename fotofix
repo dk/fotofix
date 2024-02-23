@@ -1390,7 +1390,10 @@ sub image_info
 			my $v = $exif->{$k};
 			next unless (ref($v) // '') eq 'ARRAY';
 			for my $e ( @$v ) {
-				push @items, [ "$k.$e->[0]", join(' ', @{$e}[2..$#$e]) ];
+				push @items, [
+					sprintf("%s.".( ($e->[0] =~ /^\d+$/) ? '0x%x' : '%s'), $k, $e->[0]),
+					join(' ', @{$e}[2..$#$e]) 
+				];
 			}
 		}
 	}
