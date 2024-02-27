@@ -14,10 +14,11 @@
 
 use strict;
 use warnings;
-use Prima 1.60 qw(
+use Prima 1.72 qw(
 	Application ImageViewer Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox Dialog::FileDialog Dialog::ColorDialog
-	Dialog::ImageDialog Dialog::PrintDialog VB::VBLoader Image::Animate KeySelector Widget::RubberBand
+	Dialog::ImageDialog Dialog::PrintDialog VB::VBLoader Image::Animate KeySelector
+	Widget::RubberBand Image::Exif
 );
 use Cwd qw(getcwd abs_path);
 use File::Copy;
@@ -25,6 +26,7 @@ use Time::HiRes;
 
 eval "use Prima::IPA;";
 my $UseIPA = not $@;
+my $UseXML;
 
 my $VERSION = 1.81;
 
@@ -1385,7 +1387,37 @@ sub image_info
 		push @items, [ $k, $v];
 	}
 
-	if ( my $exif = $i->exif ) {
+	my ( $exif, $error ) = Prima::Image::Exif->read_extras($i, tag_as_string  => 1);
+
+	if ( $error eq 'XMP data' && defined $exif ) {
+		unless (defined $UseXML) {
+			eval { require XML::LibXML; };
+			if ( $@ ) {
+				message("XML::LibXML is needed to read XMP data");
+				$UseXML = 0;
+				goto NO_EXIF;
+			}
+			$UseXML = 1;
+		} elsif ( !$UseXML) {
+			goto NO_EXIF;
+		}
+
+		my $xml;
+		eval { $xml = XML::LibXML->load_xml(string => $exif); };
+		goto NO_EXIF if $@;
+
+		undef $exif;
+		for my $node ($xml->findnodes('//*')) {
+			my @p = $node->childNodes;
+			next unless @p == 1;
+			my $p = $node->nodePath;
+			$p =~ s{\/\b[-\w]+\:}{.}g;
+			$p =~ s{\.(xmpmeta|rdf)}{}ig;
+			push @items, ["XMP$p", "$p[0]"];
+		}
+	}
+
+	if ( defined $exif ) {
 		for my $k ( sort keys %$exif ) {
 			my $v = $exif->{$k};
 			next unless (ref($v) // '') eq 'ARRAY';
@@ -1397,6 +1429,7 @@ sub image_info
 			}
 		}
 	}
+NO_EXIF:
 
 	my $d = Prima::Window-> create(
 		text     => 'File information',
