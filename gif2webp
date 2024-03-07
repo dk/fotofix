@@ -130,7 +130,7 @@ for my $input (@ARGV) {
 			last unless my $info = $l-> next;
 			if ( defined (my $warning = $l->warning)) {
 				print "\n** Warning: $warning\n";
-				print "The output file is invalid and is removed, consider the --scan option\n";
+				print "The output file is invalid and is removed, consider the --recover option\n";
 				unlink $output;
 				last;
 			}
