@@ -466,8 +466,8 @@ sub update_window_title
 
 	if ( $animation) {
 		$str .= ' ' .
-			($animation->{player}->current + 1) . '/' .
-			$animation->{player}->total . ' ';
+			(($animation->{player}->current // -1) + 1) . '/' .
+			($animation->{player}->total // 0). ' ';
 	}
 
 	my $is_modified = $modified ? '* ' : '';
@@ -1687,6 +1687,8 @@ sub files_multirun
 	my $i = 1;
 	my $n = @files;
 
+	$animation->{player}->close if $animation;
+
 	for my $f ( @files) {
 		my $t = "$title $i of $n: $f";
 		$w-> text( $f );
@@ -1697,6 +1699,9 @@ sub files_multirun
 	}
 
 	update_window_title();
+	if ($animation) {
+		animation_close() unless $animation->{player}->reload;
+	}
 }
 
 sub files_copy_move
