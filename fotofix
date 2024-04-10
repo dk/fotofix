@@ -4115,7 +4115,7 @@ $w = Prima::MainWindow-> create( menuItems => [
 			[rotate3 => 'Rotate ~left' => 'Alt+Left' => km::Alt|kb::Left => sub { image_rotate(90) }],
 			[rotate1 => 'Rotate ~right' => 'Alt+Right' => km::Alt|kb::Right => sub { image_rotate(270) }],
 			[rotate2 => "Rotate ~180\xB0" => sub { image_rotate(180) }],
-			[rotate  => "Rotate ~custom"  => \&image_rotate_custom ],
+			[rotate0 => "Rotate ~custom"  => \&image_rotate_custom ],
 			[],
 			[mirror1 => 'Mirror ~vertical' => 'V' => 'v' => sub { image_mirror(1) }],
 			[mirror0 => 'Mirror ~horizontal' => 'H' => 'h' => sub { image_mirror(0) }],
