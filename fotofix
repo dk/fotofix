@@ -9,7 +9,7 @@
 
 use strict;
 use warnings;
-use Prima 1.72 qw(
+use Prima 1.74 qw(
 	Application ImageViewer Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox Dialog::FileDialog Dialog::ColorDialog
 	Dialog::ImageDialog Dialog::PrintDialog VB::VBLoader Image::Animate KeySelector
@@ -1384,24 +1384,24 @@ sub image_info
 
 	my ( $exif, $error ) = Prima::Image::Exif->read_extras($i, tag_as_string  => 1);
 
-	if ( $error eq 'XMP data' && defined $exif ) {
+	if ( $exif && exists $exif->{'XMP data'}) {
+		my $xmp = $exif->{'XMP data'};
 		unless (defined $UseXML) {
 			eval { require XML::LibXML; };
 			if ( $@ ) {
 				message("XML::LibXML is needed to read XMP data");
 				$UseXML = 0;
-				goto NO_EXIF;
+				goto NO_XMP;
 			}
 			$UseXML = 1;
 		} elsif ( !$UseXML) {
-			goto NO_EXIF;
+			goto NO_XMP;
 		}
 
 		my $xml;
-		eval { $xml = XML::LibXML->load_xml(string => $exif); };
-		goto NO_EXIF if $@;
+		eval { $xml = XML::LibXML->load_xml(string => $xmp); };
+		goto NO_XMP if $@;
 
-		undef $exif;
 		for my $node ($xml->findnodes('//*')) {
 			my @p = $node->childNodes;
 			next unless @p == 1;
@@ -1411,9 +1411,11 @@ sub image_info
 			push @items, ["XMP$p", "$p[0]"];
 		}
 	}
+	NO_XMP:
 
 	if ( defined $exif ) {
 		for my $k ( sort keys %$exif ) {
+			next if $k eq 'XMP data';
 			my $v = $exif->{$k};
 			next unless (ref($v) // '') eq 'ARRAY';
 			for my $e ( @$v ) {
@@ -1424,7 +1426,6 @@ sub image_info
 			}
 		}
 	}
-NO_EXIF:
 
 	my $d = Prima::Window-> create(
 		text     => 'File information',
