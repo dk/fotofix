@@ -2366,6 +2366,8 @@ sub conversion_set
 sub image_convert
 {
 	my $type = shift;
+	$image->resample( $image->rangeLo, $image->rangeHi, 0, 255)
+		if $image->type & im::GrayScale && $image->get_bpp != 8;
 	$image-> set(
 		conversion => $conversion,
 		type       => $type,
