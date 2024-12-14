@@ -13,9 +13,8 @@ use Prima 1.74 qw(
 	Application ImageViewer Utils DetailedList Grids
 	MsgBox IniFile EventHook ComboBox Dialog::FileDialog Dialog::ColorDialog
 	Dialog::ImageDialog Dialog::PrintDialog VB::VBLoader Image::Animate KeySelector
-	Widget::RubberBand Image::Exif
+	Widget::RubberBand Image::Exif sys::FS
 );
-use Cwd qw(getcwd abs_path);
 use File::Copy;
 use Time::HiRes;
 
@@ -1092,9 +1091,10 @@ sub get_dir_list
 			('.',$filename);
 	my $exts = join('|', map { @{$_->{fileExtensions}} } @{Prima::Image-> codecs});
 	my $rx = qr/\.($exts)$/i;
-	return unless opendir D, $basedir;
-	my @files = grep { /$rx/ } readdir D;
-	closedir D;
+	my $dir;
+	return unless opendir $dir, $basedir;
+	my @files = grep { /$rx/ } readdir $dir;
+	closedir $dir;
 	if ( $ini-> {Sorting} eq 'alpha') {
 		@files = sort @files;
 	} elsif ( $ini-> {Sorting} eq 'date') {
@@ -1339,7 +1339,7 @@ sub image_info
 	%e = %{ $i-> {extras}} if $i-> {extras};
 	if ( defined $filename) {
 		$e{'file name'} = $filename;
-		if ( -f $filename) {
+		if ( _f $filename) {
 			$e{'file size'} = (-s $filename) . ' bytes';
 			$e{'file date'} = localtime(time - int( 86400 * -M $filename));
 		}
@@ -1476,7 +1476,7 @@ sub image_directories
 			);
 			return unless $chdir_dialog-> execute == mb::Ok;
 			$dir = $chdir_dialog-> directory;
-			return message("No such directory '$dir'") unless -d $dir;
+			return message("No such directory '$dir'") unless _d $dir;
 			$self->items->[$ix] = "$ix: $dir";
 			$dirs->{"Dir$ix"} = $dir;
 			$self->repaint;
@@ -1722,7 +1722,7 @@ sub files_copy_move
 		);
 		return unless $chdir_dialog-> execute == mb::Ok;
 		$dir = $ini-> {ChdirPath} = $chdir_dialog-> directory;
-		return message("No such directory '$dir'") unless -d $dir;
+		return message("No such directory '$dir'") unless _d $dir;
 	} else {
 		$dir = $use_dir;
 	}
@@ -1738,7 +1738,7 @@ sub files_copy_move
 		my $src = $_[0];
 		$src =~ /([^\\\/]*)$/;
 		my $dst = "$dir/$1";
-		if ( -f $dst and not $YesToAll) {
+		if ( _f $dst and not $YesToAll) {
 			my $r = message_box(
 				$what,
 				"$dst already exists. Overwrite?",
@@ -1783,12 +1783,12 @@ sub dir_move
 {
 	my ( $cmd, $ix ) = @_;
 	my $dir = $ini_file->section('Directories')->{"Dir$ix"};
-	if (!length $dir || ! -d $dir) {
+	if (!length $dir || ! _d $dir) {
 		image_directories();
 		$directories->Selector->focusedItem($ix);
 		$directories->Selector->notify('Click');
 		$dir = $ini_file->section('Directories')->{"Dir$ix"};
-		return if !length $dir || ! -d $dir;
+		return if !length $dir || ! _d $dir;
 	}
 
 	return if message("Move to $dir?", mb::YesNo) != mb::Yes;
@@ -2340,7 +2340,7 @@ sub iv_dragend
 	} else {
 		return;
 	}
-	if ( -d $file ) {
+	if ( _d $file ) {
 		$filename = "$file/.";
 		open_next_image($w, 'first');
 	} else {
@@ -3863,7 +3863,7 @@ sub slideshow_set_delay
 sub last_file_add
 {
 	my $newfile = shift;
-	$newfile = undef if defined($newfile) and not -f $newfile;
+	$newfile = undef if defined($newfile) and not _f $newfile;
 
 	my @last_files;
 	my @indexes;
@@ -3909,7 +3909,7 @@ sub last_file_add
 sub last_file_replace
 {
 	my $newfile = shift;
-	$newfile = undef if defined($newfile) and not -f $newfile;
+	$newfile = undef if defined($newfile) and not _f $newfile;
 	return unless defined $newfile;
 	my $index = 1;
 	for ( reverse( 1 .. $MaxLastFiles)) {
@@ -4292,9 +4292,9 @@ update_window_size();
 if ( @ARGV) {
 	if ( $ARGV[0] =~ /^https?:/ ) {
 		open_url( $ARGV[0] );
-	} elsif ( -f $ARGV[0]) {
+	} elsif ( _f $ARGV[0]) {
 		open_new_image( $ARGV[0]);
-	} elsif ( -d $ARGV[0]) {
+	} elsif ( _d $ARGV[0]) {
 		$filename = "$ARGV[0]/.";
 		open_next_image($w, 'first');
 	} else {
