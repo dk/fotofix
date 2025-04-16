@@ -856,6 +856,7 @@ sub load_params
 		wantFrames     => 1,
 		loadExtras     => 1,
 		exifTransform  => $ini->{ExifOrientation} ? "wipe" : "none",
+		keep_orientation => $ini->{ExifOrientation},
 	);
 }
 
