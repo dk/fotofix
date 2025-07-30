@@ -106,7 +106,7 @@ for my $input (@ARGV) {
 		if ( $input =~ m/^(.*)\.gif/i) {
 			$output = "$1.webp";
 		} else {
-			$output .= ".webp";
+			$output = "$input.webp";
 		}
 	}
 
