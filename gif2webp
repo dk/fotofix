@@ -7,6 +7,7 @@ use Prima::noX11;
 use Prima::noARGV;
 use Time::HiRes qw(time);
 use Prima qw(Image::Animate Image::Loader);
+use File::Find qw(finddepth);
 
 my %opt = (
 	help        => 0,
@@ -18,6 +19,7 @@ my %opt = (
 	filter      => 0,
 	method      => 3,
 	recover     => 0,
+	recursive   => 0,
 	policy      => 'keep',
 );
 
@@ -34,13 +36,15 @@ options:
 	--help|-h
 	--help-options
 	--help-codecs
+	-r|--recursive
 
 	-c|--compression lossless|lossy|mixed (default:$opt{compression})
 	-q|--quality     0-100                (default:$opt{quality})
 	-f|--filter      0-100                (default:$opt{filter})
 	-m|--method      0-6                  (default:$opt{method})
 
-	-r|--recover     try to recover a broken file by scanning for individual frames
+
+	-v|--recover     try to recover a broken file by scanning for individual frames
 	-p|--policy      keep|delete|compare  (default:$opt{policy})
 	                 keep     - do not delete old gif file
 			 delete   - delete old gif file
@@ -55,11 +59,12 @@ GetOptions(\%opt,
 	"help-options",
 	"help-codecs",
 	"output|o=s",
+	"recursive|r",
 	"compression|c=s",
 	"quality|q=i",
 	"filter|f=i",
 	"method|m=i",
-	"recover|r",
+	"recover|v",
 	"policy|p=s",
 ) or usage;
 
@@ -93,22 +98,21 @@ usage unless @ARGV;
 my $codecID;
 die "Prima is not compiled with WEBP support\n" unless defined ( $codecID = (( Prima::Image->has_codec('WEBP') // {} )->{codecID}));
 
-@ARGV = <$ARGV[0]> if $^O =~ /win32/i && 1 == @ARGV;
-die "-o can be only defined for single input file\n" if 1 < @ARGV && defined $opt{output};
+if ( $opt{recursive}) {
+	die "input must be a directory\n" unless -d $ARGV[0];
+} elsif ($^O =~ /win32/i && 1 == @ARGV) {
+	@ARGV = <$ARGV[0]> 
+}
+die "-o can be only defined for single input file\n" if
+	(1 < @ARGV || $opt{recursive}) && defined $opt{output};
 
 $|++;
 
 my $total_saved = 0;
 
-for my $input (@ARGV) {
-	my $output = $opt{output};
-	unless ( defined $output ) {
-		if ( $input =~ m/^(.*)\.gif/i) {
-			$output = "$1.webp";
-		} else {
-			$output = "$input.webp";
-		}
-	}
+sub convert
+{
+	my ( $input, $output, $prefix ) = @_;
 
 	my ($l,$s,$e,$i,$ok);
 	($l,$e) = Prima::Image::Animate->load( $input );
@@ -142,7 +146,7 @@ for my $input (@ARGV) {
 			last if $l->current == $l->total - 1;
 			my $t2 = time;
 			if ( $t2 - $t > 0 ) {
-				print "\r$input: ", ($l->current + 1), "/", $l->total;
+				print "\r$prefix$input: ", ($l->current + 1), "/", $l->total;
 				$t = $t2;
 			}
 		}
@@ -155,10 +159,10 @@ for my $input (@ARGV) {
 	undef $l;
 	undef $s;
 
-	print "\r", $output, ': ', $i->width, 'x', $i->height, ', ', "$saved frames saved";
+	print "\r", $prefix, $output, ': ', $i->width, 'x', $i->height, ', ', "$saved frames saved";
 	if ( $opt{policy} eq 'delete') {
 		unlink $input;
-		print ", $input deleted";
+		print ", $prefix$input deleted";
 	} elsif ( $opt{policy} eq 'compare') {
 		my $isz = -s $input;
 		my $osz = -s $output;
@@ -176,6 +180,30 @@ for my $input (@ARGV) {
 		}
 	}
 	print "\n";
+}
+
+sub i2o
+{
+	my $input = shift;
+	my $output;
+	if ( $input =~ m/^(.*)\.gif/i) {
+		$output = "$1.webp";
+	} else {
+		$output = "$input.webp";
+	}
+	return $output;
+}
+
+if ( $opt{recursive}) {
+	finddepth( sub {
+		return unless m/gif$/;
+		convert($_, i2o($_), "$File::Find::dir/");
+	}, $ARGV[0]);
+} else {
+	for my $input (@ARGV) {
+		my $output = $opt{output} // i2o($input);
+		convert($input, $output, '');
+	}
 }
 
 print "Total $total_saved bytes saved\n" if @ARGV > 1 && $total_saved > 0;
