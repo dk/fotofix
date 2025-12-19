@@ -690,13 +690,32 @@ sub sorting_set
 	%neighbour_files_cache = ();
 }
 
-# occupy primary monitor only
+# occupy the monitor the window overlaps most
 sub fullscreen_sizes
 {
-	my $primary = $::application->get_monitor_rects->[0];
+	my $screens = $::application->get_monitor_rects;
+	my @w       = $w->rect;
+	my ($id, $area) = (0,0);
+	for (my $i = 0; $i < @$screens; $i++) {
+		my @s = @{ $screens->[$i] };
+		$s[2] += $s[0];
+		$s[3] += $s[1];
+		next if $w[0] > $s[2] or $w[2] < $s[0] or $w[1] > $s[3] or $w[3] < $s[1];
+		my @r = (
+			(($w[0] > $s[0]) ? $w[0] : $s[0]),
+			(($w[1] > $s[1]) ? $w[1] : $s[1]),
+			(($w[2] < $s[2]) ? $w[2] : $s[2]),
+			(($w[3] < $s[3]) ? $w[3] : $s[3]),
+		);
+		my $A = ($r[2] - $r[0]) * ($r[3] - $r[1]);
+		next if $A < $area;
+		$area = $A;
+		$id = $i;
+	}
+
 	return (
-		origin => [@{$primary}[0,1]],
-		size   => [@{$primary}[2,3]],
+		origin => [@{$screens->[$id]}[0,1]],
+		size   => [@{$screens->[$id]}[2,3]],
 	);
 }
 
